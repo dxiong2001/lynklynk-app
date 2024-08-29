@@ -1,18 +1,39 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'view.dart' as view;
 import 'input.dart';
 import 'highlighter.dart';
+import 'package:lynklynk/loader.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(800, 600),
+    center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.hidden,
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.setAsFrameless();
+    await windowManager.focus();
+  });
   runApp(const MyApp());
 }
 
 class Editor extends StatefulWidget {
-  const Editor({super.key, this.path = ''});
+  const Editor(
+      {super.key,
+      required this.path,
+      this.isPath = false,
+      required this.fileName});
   final String path;
+  final bool isPath;
+  final String fileName;
   @override
   State<Editor> createState() => _Editor();
 }
@@ -22,16 +43,23 @@ class _Editor extends State<Editor> {
   @override
   void initState() {
     doc = view.DocumentProvider();
-    doc.openFile(widget.path);
+    if (widget.isPath) {
+      doc.openFile(widget.path);
+    }
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(providers: [
-      ChangeNotifierProvider(create: (context) => doc),
-      Provider(create: (context) => Highlighter())
-    ], child: const InputListener(child: view.View()));
+    return MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (context) => doc),
+          Provider(create: (context) => Highlighter())
+        ],
+        child: InputListener(
+            child: view.View(
+          fileName: widget.fileName,
+        )));
   }
 }
 
@@ -43,10 +71,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          fontFamily: 'FiraCode',
+          fontFamily: 'Times',
           primaryColor: foreground,
-          scaffoldBackgroundColor: background,
+          scaffoldBackgroundColor: const Color(0xFFEFEFEF),
         ),
-        home: const Scaffold(body: Editor(path: './samples/test.txt')));
+        home: const Scaffold(body: Loader()));
   }
 }

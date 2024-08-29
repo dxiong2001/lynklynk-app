@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:collection';
 import 'dart:ui' as ui;
 
-import 'document.dart';
+import 'package:lynklynk/layout/document.dart';
 
-double fontSize = 18;
 double gutterFontSize = 16;
 
 Size getTextExtents(String text, TextStyle style) {
@@ -16,9 +15,10 @@ Size getTextExtents(String text, TextStyle style) {
   return textPainter.size;
 }
 
-Color foreground = const Color(0xfff8f8f2);
-Color background = const Color(0xff272822);
-Color comment = const Color(0xff88846f);
+Color foreground = Color.fromARGB(255, 255, 255, 255);
+Color background = Color.fromARGB(255, 255, 255, 255);
+Color textColor = Color.fromARGB(255, 0, 0, 0);
+Color comment = Color.fromARGB(255, 0, 0, 0);
 Color selection = const Color(0xff44475a);
 Color function = const Color(0xff50fa7b);
 Color keyword = const Color(0xffff79c6);
@@ -31,6 +31,7 @@ class LineDecoration {
   Color background = Colors.white;
   bool underline = false;
   bool italic = false;
+  bool bold = false;
 }
 
 class CustomWidgetSpan extends WidgetSpan {
@@ -55,8 +56,9 @@ class Highlighter {
   }
 
   List<InlineSpan> run(String text, int line, Document document) {
-    TextStyle defaultStyle = TextStyle(
-        fontFamily: 'FiraCode', fontSize: fontSize, color: foreground);
+    double fontSize = document.getFontSize();
+    TextStyle defaultStyle =
+        TextStyle(fontFamily: 'Times', fontSize: fontSize, color: textColor);
     List<InlineSpan> res = <InlineSpan>[];
     List<LineDecoration> decors = <LineDecoration>[];
 
@@ -94,7 +96,7 @@ class Highlighter {
             line > cur.anchorLine ||
             (line == cur.anchorLine && i + 1 > cur.anchorColumn)) {
         } else {
-          style = style.copyWith(backgroundColor: selection.withOpacity(0.75));
+          style = style.copyWith(backgroundColor: selection.withOpacity(0.9));
         }
       }
 
@@ -106,9 +108,16 @@ class Highlighter {
             child: Container(
                 decoration: BoxDecoration(
                     border: Border(
-                        left: BorderSide(
-                            width: 1.2, color: style.color ?? Colors.yellow))),
-                child: Text(ch, style: style.copyWith(letterSpacing: -1.5)))));
+                  // top: BorderSide(
+                  //     width: 0.9, color: style.color ?? Colors.yellow),
+                  // bottom: BorderSide(
+                  //     width: 0.9, color: style.color ?? Colors.yellow),
+                  left: BorderSide(
+                      width: 0.9, color: style.color ?? Colors.yellow),
+                  // right: BorderSide(
+                  //     width: 0.9, color: style.color ?? Colors.yellow),
+                )),
+                child: Text(ch, style: style.copyWith(letterSpacing: 0)))));
         continue;
       }
 
@@ -127,12 +136,12 @@ class Highlighter {
       res.add(TextSpan(
           text: ch,
           style: style,
-          mouseCursor: MaterialStateMouseCursor.textable));
+          mouseCursor: WidgetStateMouseCursor.textable));
       prevText = ch;
     }
 
     res.add(CustomWidgetSpan(
-        child: const SizedBox(height: 1, width: 8), line: line));
+        child: const SizedBox(height: 0.1, width: 8), line: line));
     return res;
   }
 }

@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
-import 'dart:async';
 
-import 'document.dart';
+import 'package:lynklynk/layout/document.dart';
 import 'view.dart';
 import 'highlighter.dart';
 
-Offset screenToCursor(RenderObject? obj, Offset pos) {
+Offset screenToCursor(RenderObject? obj, Offset pos, DocumentProvider doc) {
   List<RenderParagraph> pars = <RenderParagraph>[];
   findRenderParagraphs(obj, pars);
 
@@ -26,7 +25,6 @@ Offset screenToCursor(RenderObject? obj, Offset pos) {
       break;
     }
   }
-
   if (targetPar == null) return const Offset(-1, -1);
 
   Rect bounds = const Offset(0, 0) & targetPar.size;
@@ -61,7 +59,8 @@ Offset screenToCursor(RenderObject? obj, Offset pos) {
   if (children.isNotEmpty && children.last is CustomWidgetSpan) {
     line = (children.last as CustomWidgetSpan).line;
   }
-
+  print(line.toDouble());
+  print(textOffset.toDouble());
   return Offset(textOffset.toDouble(), line.toDouble());
 }
 
@@ -98,11 +97,21 @@ class _InputListener extends State<InputListener> {
     focusNode.dispose();
   }
 
-  void keyPressResponse(Document d, KeyEvent event) {
+  void keyPressResponseUp(Document d, KeyEvent event) {
+    if (event.logicalKey == LogicalKeyboardKey.controlLeft ||
+        event.logicalKey == LogicalKeyboardKey.controlRight) {
+      d.setControlFalse();
+    } else if (event.logicalKey == LogicalKeyboardKey.shiftLeft ||
+        event.logicalKey == LogicalKeyboardKey.shiftRight) {
+      d.setShiftFalse();
+    }
+  }
+
+  void keyPressResponseDown(Document d, KeyEvent event) {
     switch (event.logicalKey.keyLabel) {
       case 'Home':
         if (event.logicalKey == LogicalKeyboardKey.control) {
-          d.moveCursorToStartOfDocument();
+          // d.moveCursorToStartOfDocument();
         } else {
           d.moveCursorToStartOfLine();
         }
@@ -115,7 +124,13 @@ class _InputListener extends State<InputListener> {
         }
         break;
       case 'Tab':
-        d.insertText('    ');
+        if (d.bulletActive[d.cursor.line] && !d.getShiftActive()) {
+          d.updateBulletLevel(d.cursor.line, true);
+        } else if (d.bulletActive[d.cursor.line] && d.getShiftActive()) {
+          d.updateBulletLevel(d.cursor.line, false);
+        } else {
+          d.insertText('    ');
+        }
         break;
       case 'Enter':
         d.deleteSelectedText();
@@ -151,8 +166,17 @@ class _InputListener extends State<InputListener> {
         d.moveCursorDown(
             keepAnchor: event.logicalKey == LogicalKeyboardKey.shift);
         break;
+
       default:
         {
+          if (event.logicalKey == LogicalKeyboardKey.controlLeft ||
+              event.logicalKey == LogicalKeyboardKey.controlRight) {
+            d.setControlTrue();
+          }
+          if (event.logicalKey == LogicalKeyboardKey.shiftLeft ||
+              event.logicalKey == LogicalKeyboardKey.shiftRight) {
+            d.setShiftTrue();
+          }
           int k = event.logicalKey.keyId;
           if ((k >= LogicalKeyboardKey.keyA.keyId &&
                   k <= LogicalKeyboardKey.keyZ.keyId) ||
@@ -160,11 +184,16 @@ class _InputListener extends State<InputListener> {
                   k + 32 <= LogicalKeyboardKey.keyZ.keyId)) {
             String ch =
                 String.fromCharCode(97 + k - LogicalKeyboardKey.keyA.keyId);
-            if (event.logicalKey == LogicalKeyboardKey.control) {
+
+            if (d.getControlActive()) {
               d.command('ctrl+$ch');
               break;
             }
-            d.insertText(ch);
+            if (d.getShiftActive()) {
+              d.insertText(ch.toUpperCase());
+            } else {
+              d.insertText(ch);
+            }
             break;
           }
         }
@@ -190,11 +219,15 @@ class _InputListener extends State<InputListener> {
           autofocus: true,
           onKeyEvent: (FocusNode node, KeyEvent event) {
             if (event is KeyDownEvent) {
-              keyPressResponse(d, event);
+              keyPressResponseDown(d, event);
+              doc.touch();
+            }
+            if (event is KeyUpEvent) {
+              keyPressResponseUp(d, event);
               doc.touch();
             }
             if (event is KeyRepeatEvent) {
-              keyPressResponse(d, event);
+              keyPressResponseDown(d, event);
               doc.touch();
             }
 
@@ -204,13 +237,13 @@ class _InputListener extends State<InputListener> {
         ),
         onTapDown: (TapDownDetails details) {
           Offset o = screenToCursor(
-              context.findRenderObject(), details.globalPosition);
+              context.findRenderObject(), details.globalPosition, doc);
           d.moveCursor(o.dy.toInt(), o.dx.toInt());
           doc.touch();
         },
         onPanUpdate: (DragUpdateDetails details) {
           Offset o = screenToCursor(
-              context.findRenderObject(), details.globalPosition);
+              context.findRenderObject(), details.globalPosition, doc);
           if (o.dx == -1 || o.dy == -1) return;
           d.moveCursor(o.dy.toInt(), o.dx.toInt(), keepAnchor: true);
           doc.touch();

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/services.dart';
 
 class Cursor {
   Cursor(
@@ -42,39 +43,133 @@ class Document {
   String docPath = '';
   List<String> lines = <String>[''];
   Cursor cursor = Cursor();
-  String clipboardText = '';
+  String? clipboardText = '';
+  bool focused = false;
+  bool controlActive = false;
+  bool shiftActive = false;
+  List<bool> bulletActive = List.generate(1, (index) => false);
+  List<int> bulletLevel = List.generate(1, (index) => 0);
+  double fontSize = 16.0;
+  bool disableClick = false;
 
   Future<bool> openFile(String path) async {
-    lines = <String>[''];
     docPath = path;
     File f = File(docPath);
-    await f
-        .openRead()
-        .map(utf8.decode)
-        .transform(const LineSplitter())
-        .forEach((l) {
-      insertText(l);
-      insertNewLine();
-    });
+    String fileString = await f.readAsString();
+    fileString = fileString.replaceAll(r'\n', '\n');
+    print("string: $fileString");
+    const splitter = LineSplitter();
+    final linesList = splitter.convert(fileString);
+
+    print(linesList);
+    print("-------");
+    for (var i = 0; i < linesList.length; i++) {
+      print(linesList[i]);
+
+      insertText(linesList[i]);
+      if (linesList[i].isNotEmpty && i < linesList.length - 1) {
+        insertNewLine();
+      }
+    }
+    // await f
+    //     .openRead()
+    //     .map(utf8.decode)
+    //     .transform(const LineSplitter())
+    //     .forEach((line) {
+    //   print("line $line");
+    //   insertText(line);
+    //   if (line.isEmpty) {
+    //     insertNewLine();
+    //   }
+    // });
     moveCursorToStartOfDocument();
+    print(lines);
     return true;
+  }
+
+  void setFocus(bool focus) {
+    focused = focus;
+  }
+
+  bool getFocus() {
+    return focused;
+  }
+
+  bool getDisableClick() {
+    return disableClick;
+  }
+
+  void setDisableClick(bool disable) {
+    disableClick = disable;
   }
 
   Future<bool> saveFile({String? path}) async {
     File f = File(path ?? docPath);
     String content = '';
-    for (var l in lines) {
-      content += l + '\n';
+    int i;
+    for (i = 0; i < lines.length; i++) {
+      if (i < lines.length - 1) {
+        content += lines[i] + '\n';
+      } else {
+        content += lines[i];
+      }
     }
+    print(bulletLevel);
+    print("$content");
     f.writeAsString(content);
     return true;
+  }
+
+  double getFontSize() {
+    return fontSize;
+  }
+
+  void setFontSize(double size) {
+    if (size < 5 || size > 35) {
+      return;
+    }
+    fontSize = size;
+  }
+
+  bool getControlActive() {
+    return controlActive;
+  }
+
+  void setControlTrue() {
+    controlActive = true;
+  }
+
+  void setControlFalse() {
+    controlActive = false;
+  }
+
+  bool getShiftActive() {
+    return shiftActive;
+  }
+
+  void setShiftTrue() {
+    shiftActive = true;
+  }
+
+  void setShiftFalse() {
+    shiftActive = false;
+  }
+
+  void setCursorColumn(int col) {
+    cursor.column = col;
+  }
+
+  void setCursorLine(int line) {
+    cursor.line = line;
   }
 
   void _validateCursor(bool keepAnchor) {
     if (cursor.line >= lines.length) {
       cursor.line = lines.length - 1;
     }
-    if (cursor.line < 0) cursor.line = 0;
+    if (cursor.line < 0) {
+      cursor.line = 0;
+    } else {}
     if (cursor.column > lines[cursor.line].length) {
       cursor.column = lines[cursor.line].length;
     }
@@ -87,6 +182,12 @@ class Document {
   }
 
   void moveCursor(int line, int column, {bool keepAnchor = false}) {
+    if (disableClick) {
+      return;
+    }
+    if (cursor.hasSelection() && column < 0) {
+      return;
+    }
     cursor.line = line;
     cursor.column = column;
     _validateCursor(keepAnchor);
@@ -142,9 +243,90 @@ class Document {
     _validateCursor(keepAnchor);
   }
 
+  void initBulletLists(List<int> bulletList) {
+    if (bulletList.isEmpty) return;
+    print(bulletList);
+    List<bool> bulletListActive = List.generate(0, (index) => false);
+    List<int> bulletListLevel = List.generate(0, (index) => 0);
+    for (int i = 0; i < bulletList.length; i++) {
+      if (bulletList[i] < 0) {
+        bulletListActive.add(false);
+        bulletListLevel.add(0);
+      } else {
+        bulletListActive.add(true);
+        bulletListLevel.add(bulletList[i]);
+      }
+    }
+
+    bulletActive = bulletListActive;
+    bulletLevel = bulletListLevel;
+  }
+
+  void updateBulletLevel(int level, bool increase) {
+    if (increase) {
+      if (bulletLevel[level] == 15) return;
+      bulletLevel[level] += 1;
+    } else {
+      if (bulletLevel[level] == 0) return;
+      bulletLevel[level] -= 1;
+    }
+  }
+
+  void bulletMode() {
+    if (cursor.hasSelection()) {
+    } else {
+      bulletActive[cursor.line] = !bulletActive[cursor.line];
+    }
+  }
+
   void insertNewLine() {
     deleteSelectedText();
     insertText('\n');
+  }
+
+  void copyText(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+  }
+
+  Future<void> pasteText() async {
+    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    clipboardText = clipboardData?.text;
+    print(clipboardText);
+  }
+
+  void insertTextInit(String text) {
+    deleteSelectedText();
+    String l = lines[cursor.line];
+    String left = l.substring(0, cursor.column);
+    String right = l.substring(cursor.column);
+    RegExp exp = RegExp(r'(\r\n|\r|\n)');
+    var splitTextByNewline = text.split(exp);
+    String bulletString = "";
+    if (splitTextByNewline.length <= 2) {
+      if (splitTextByNewline[0] == "") {
+        lines[cursor.line] = left;
+
+        lines.insert(cursor.line + 1, bulletString + right);
+
+        moveCursorDown();
+        moveCursorToStartOfLine();
+      } else {
+        lines[cursor.line] = left + splitTextByNewline[0] + right;
+        moveCursorRight(count: text.length);
+      }
+      return;
+    } else {
+      for (int i = 0; i < splitTextByNewline.length; i++) {
+        if (i == 0) {
+          lines[cursor.line] += splitTextByNewline[0];
+        } else {
+          lines.insert(cursor.line + 1, splitTextByNewline[i]);
+        }
+        moveCursorDown();
+      }
+      lines[cursor.line] += right;
+      return;
+    }
   }
 
   void insertText(String text) {
@@ -152,24 +334,54 @@ class Document {
     String l = lines[cursor.line];
     String left = l.substring(0, cursor.column);
     String right = l.substring(cursor.column);
+    RegExp exp = RegExp(r'(\r\n|\r|\n)');
+    var splitTextByNewline = text.split(exp);
+    String bulletString = "";
+    if (splitTextByNewline.length <= 2) {
+      if (splitTextByNewline[0] == "") {
+        lines[cursor.line] = left;
+        if (bulletActive[cursor.line]) {
+          bulletActive.insert(cursor.line + 1, true);
+          bulletLevel.insert(cursor.line + 1, bulletLevel[cursor.line]);
+        } else {
+          bulletActive.insert(cursor.line + 1, false);
+          bulletLevel.insert(cursor.line + 1, 0);
+        }
+        lines.insert(cursor.line + 1, bulletString + right);
 
-    // handle new line
-    if (text == '\n') {
-      lines[cursor.line] = left;
-      lines.insert(cursor.line + 1, right);
-      moveCursorDown();
-      moveCursorToStartOfLine();
+        moveCursorDown();
+        moveCursorToStartOfLine();
+      } else {
+        lines[cursor.line] = left + splitTextByNewline[0] + right;
+        moveCursorRight(count: text.length);
+      }
+      return;
+    } else {
+      for (int i = 0; i < splitTextByNewline.length - 1; i++) {
+        if (i == 0) {
+          lines[cursor.line] += splitTextByNewline[0];
+        } else {
+          lines.insert(cursor.line + 1, splitTextByNewline[i]);
+          bulletActive.insert(cursor.line + 1, false);
+          bulletLevel.insert(cursor.line + 1, 0);
+        }
+        moveCursorDown();
+      }
+      lines[cursor.line] += right;
       return;
     }
-
-    lines[cursor.line] = left + text + right;
-    moveCursorRight(count: text.length);
   }
 
   void deleteText({int numberOfCharacters = 1, bool line = false}) {
     if (cursor.column == 0 && cursor.line == 0) {
       return;
     }
+
+    if (cursor.column == 0 && bulletActive[cursor.line]) {
+      bulletActive[cursor.line] = false;
+      return;
+    }
+
     String l = lines[cursor.line];
     int priorCursorColumn = cursor.column;
     if (!line) {
@@ -183,6 +395,8 @@ class Document {
       // copy then delete previous line to new current line
       lines[cursor.line] += lines[cursor.line + 1];
       lines.removeAt(cursor.line + 1);
+      bulletActive.removeAt(cursor.line + 1);
+      bulletLevel.removeAt(cursor.line + 1);
       moveCursorUp();
       cursor = cur;
       return;
@@ -224,6 +438,11 @@ class Document {
     return selectedLines().join('\n');
   }
 
+  void selectAll() {
+    moveCursorToStartOfDocument();
+    moveCursorToEndOfDocument(keepAnchor: true);
+  }
+
   void deleteSelectedText() {
     if (!cursor.hasSelection()) {
       return;
@@ -248,6 +467,8 @@ class Document {
     lines[cur.anchorLine] = lines[cur.anchorLine].substring(cur.anchorColumn);
     for (int i = 0; i < res.length - 1; i++) {
       lines.removeAt(cur.line + 1);
+      bulletActive.removeAt(cur.line + 1);
+      bulletLevel.removeAt(cur.line + 1);
     }
     _validateCursor(false);
   }
@@ -257,17 +478,23 @@ class Document {
     cursor.anchorColumn = cursor.column;
   }
 
-  void command(String cmd) {
+  void command(String cmd) async {
     switch (cmd) {
+      case 'ctrl+a':
+        selectAll();
+        break;
       case 'ctrl+c':
-        clipboardText = selectedText();
+        //clipboardText = selectedText();
+        copyText(selectedText());
         break;
       case 'ctrl+x':
         clipboardText = selectedText();
         deleteSelectedText();
         break;
       case 'ctrl+v':
-        insertText(clipboardText);
+        await pasteText();
+        insertText(clipboardText ?? "");
+
         break;
       case 'ctrl+s':
         saveFile();
