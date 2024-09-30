@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart' as provider;
 import 'package:window_manager/window_manager.dart';
-
+import 'dart:io';
 import 'view.dart' as view;
 import 'input.dart';
 import 'highlighter.dart';
 import 'package:lynklynk/loader.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,10 +20,12 @@ void main() async {
     titleBarStyle: TitleBarStyle.hidden,
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.setAsFrameless();
     await windowManager.focus();
   });
-  runApp(const MyApp());
+  if (Platform.isWindows) {
+    WindowManager.instance.setMinimumSize(const Size(600, 600));
+  }
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class Editor extends StatefulWidget {
@@ -51,10 +54,10 @@ class _Editor extends State<Editor> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
+    return provider.MultiProvider(
         providers: [
-          ChangeNotifierProvider(create: (context) => doc),
-          Provider(create: (context) => Highlighter())
+          provider.ChangeNotifierProvider(create: (context) => doc),
+          provider.Provider(create: (context) => Highlighter())
         ],
         child: InputListener(
             child: view.View(
@@ -73,7 +76,7 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           fontFamily: 'Times',
           primaryColor: foreground,
-          scaffoldBackgroundColor: const Color(0xFFEFEFEF),
+          scaffoldBackgroundColor: Color.fromARGB(255, 255, 255, 255),
         ),
         home: const Scaffold(body: Loader()));
   }

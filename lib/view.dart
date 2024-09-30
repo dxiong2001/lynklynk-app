@@ -6,6 +6,7 @@ import 'package:lynklynk/layout/document.dart';
 import 'highlighter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:convert';
+import 'package:lynklynk/bullet.dart';
 
 class DocumentProvider extends ChangeNotifier {
   Document doc = Document();
@@ -59,13 +60,21 @@ class ViewLine extends StatelessWidget {
         getTextExtents(' ${doc.doc.lines.length} ', gutterStyle).width;
     bool bulleted = doc.doc.bulletActive[lineNumber];
     int bulletLevel = doc.doc.bulletLevel[lineNumber];
-    return Column(
+    bool highlight = doc.doc.cursor.line == lineNumber;
+    List<String> suggestionList = doc.doc.getSuggestList();
+    return Container(
+        // margin: highlight
+        //     ? suggestionList.isEmpty
+        //         ? const EdgeInsets.symmetric(vertical: 10)
+        //         : const EdgeInsets.only(top: 10, bottom: 0)
+        //     : null,
+        child: Column(
       children: [
         Row(children: [
           bulleted
               ? Padding(
                   padding:
-                      EdgeInsets.only(left: 20.0 + 20 * bulletLevel, top: 3),
+                      EdgeInsets.only(left: 20.0 + 25 * bulletLevel, top: 3),
                   child: bulletLevel % 2 == 0
                       ? Container(
                           width: 5,
@@ -91,14 +100,57 @@ class ViewLine extends StatelessWidget {
                       padding: bulleted
                           ? const EdgeInsets.only(left: 8, right: 16.0)
                           : const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: RichText(
-                          text: TextSpan(
-                              children: spans,
-                              style: const TextStyle(color: Colors.black)),
-                          softWrap: true)))),
+                      child: Stack(clipBehavior: Clip.none, children: [
+                        Container(
+                            decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                    color:
+                                        const Color.fromARGB(255, 29, 29, 29))),
+                            margin: const EdgeInsets.symmetric(vertical: 7),
+                            padding: const EdgeInsets.only(
+                                top: 5, bottom: 6, left: 9, right: 9),
+                            child: RichText(
+                                text: TextSpan(
+                                    children: spans,
+                                    style:
+                                        const TextStyle(color: Colors.black)),
+                                softWrap: true)),
+                        highlight && suggestionList.isNotEmpty
+                            ? Positioned(
+                                bottom: -20,
+                                child: Container(
+                                    height: 200,
+                                    color: Colors.green,
+                                    padding: EdgeInsets.all(5),
+                                    child: highlight &&
+                                            suggestionList.isNotEmpty
+                                        ? SizedBox()
+                                        // ? ListView.builder(
+                                        //     scrollDirection: Axis.vertical,
+                                        //     itemCount: suggestionList.length,
+                                        //     itemBuilder: (BuildContext context,
+                                        //         int index) {
+                                        //       return Container(
+                                        //           margin: EdgeInsets.all(2),
+                                        //           child: Text(
+                                        //             suggestionList[index]
+                                        //                         .length >
+                                        //                     20
+                                        //                 ? suggestionList[index]
+                                        //                         .substring(
+                                        //                             0, 20) +
+                                        //                     '...'
+                                        //                 : suggestionList[index],
+                                        //           ));
+                                        //     })
+                                        : SizedBox()),
+                              )
+                            : SizedBox(),
+                      ])))),
         ])
       ],
-    );
+    ));
   }
 }
 
@@ -352,6 +404,7 @@ class _View extends State<View> {
                                 ),
                                 onPressed: () {
                                   print("close");
+                                  doc.doc.saveFile();
                                   WindowManager.instance.close();
                                 },
                                 icon: const Icon(Icons.clear),

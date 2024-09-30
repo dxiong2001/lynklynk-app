@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:lynklynk/utils/suggestions.dart' as Suggestions;
 
 class Cursor {
   Cursor(
@@ -41,6 +42,7 @@ class Cursor {
 
 class Document {
   String docPath = '';
+  String currentString = '';
   List<String> lines = <String>[''];
   Cursor cursor = Cursor();
   String? clipboardText = '';
@@ -51,6 +53,8 @@ class Document {
   List<int> bulletLevel = List.generate(1, (index) => 0);
   double fontSize = 16.0;
   bool disableClick = false;
+  Suggestions.Suggestions suggestion = new Suggestions.Suggestions();
+  List<String> suggestionList = <String>[];
 
   Future<bool> openFile(String path) async {
     docPath = path;
@@ -63,6 +67,7 @@ class Document {
 
     print(linesList);
     print("-------");
+    suggestion.initTerms(linesList);
     for (var i = 0; i < linesList.length; i++) {
       print(linesList[i]);
 
@@ -116,6 +121,7 @@ class Document {
     }
     print(bulletLevel);
     print("$content");
+    suggestion.initTerms(lines);
     f.writeAsString(content);
     return true;
   }
@@ -191,6 +197,7 @@ class Document {
     cursor.line = line;
     cursor.column = column;
     _validateCursor(keepAnchor);
+    resetCurrent();
   }
 
   void moveCursorLeft({int count = 1, bool keepAnchor = false}) {
@@ -214,33 +221,39 @@ class Document {
   void moveCursorUp({int count = 1, bool keepAnchor = false}) {
     cursor.line = cursor.line - count;
     _validateCursor(keepAnchor);
+    resetCurrent();
   }
 
   void moveCursorDown({int count = 1, bool keepAnchor = false}) {
     cursor.line = cursor.line + count;
     _validateCursor(keepAnchor);
+    resetCurrent();
   }
 
   void moveCursorToStartOfLine({bool keepAnchor = false}) {
     cursor.column = 0;
     _validateCursor(keepAnchor);
+    resetCurrent();
   }
 
   void moveCursorToEndOfLine({bool keepAnchor = false}) {
     cursor.column = lines[cursor.line].length;
     _validateCursor(keepAnchor);
+    resetCurrent();
   }
 
   void moveCursorToStartOfDocument({bool keepAnchor = false}) {
     cursor.line = 0;
     cursor.column = 0;
     _validateCursor(keepAnchor);
+    resetCurrent();
   }
 
   void moveCursorToEndOfDocument({bool keepAnchor = false}) {
     cursor.line = lines.length - 1;
     cursor.column = lines[cursor.line].length;
     _validateCursor(keepAnchor);
+    resetCurrent();
   }
 
   void initBulletLists(List<int> bulletList) {
@@ -327,6 +340,38 @@ class Document {
       lines[cursor.line] += right;
       return;
     }
+  }
+
+  void updateSuggestionList(List<String> s) {
+    suggestionList = s;
+  }
+
+  List<String> getSuggestList() {
+    return suggestionList;
+  }
+
+  void clearSuggestList() {
+    suggestionList = <String>[];
+  }
+
+  String getCurrent() {
+    return currentString;
+  }
+
+  void deleteLastCharCurrent() {
+    if (currentString.isEmpty) {
+      return;
+    }
+    currentString = currentString.substring(0, currentString.length - 1);
+    print("remaining: $currentString");
+  }
+
+  void updateCurrent(String c) {
+    currentString += c;
+  }
+
+  void resetCurrent() {
+    currentString = "";
   }
 
   void insertText(String text) {

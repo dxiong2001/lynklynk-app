@@ -3,13 +3,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:lynklynk/main.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:collection/collection.dart';
+import 'package:lynklynk/test.dart';
 
 class Loader extends StatefulWidget {
-  const Loader({super.key, this.path = ''});
-  final String path;
+  const Loader({super.key});
 
   @override
   _Loader createState() => _Loader();
@@ -117,7 +119,7 @@ class _Loader extends State<Loader> {
   Future<File> _createLevelFile(String name) async {
     Directory appDocDir = await getApplicationDocumentsDirectory();
     String appDocPath = appDocDir.path;
-    
+
     var directory = await Directory('dir/subdir').create(recursive: true);
     File file = File('$appDocPath/LynkLynkApp/files/$name.txt');
     return await file.create();
@@ -128,6 +130,52 @@ class _Loader extends State<Loader> {
         directoryFiles.firstWhereOrNull((element) => element["name"] == name);
 
     return existingItem != null;
+  }
+
+  Future<void> readJson() async {
+    final String response =
+        await rootBundle.loadString('assets/project-constellation.sets5.json');
+    final data = await json.decode(response);
+    Map dataMap = data[8]["terms"];
+    List<int> dataLevelList = [];
+    List<String> dataTermList = [];
+    dataMap.forEach((key, value) {
+      if (!dataTermList.contains(key.replaceAll('\n', ' '))) {
+        dataTermList.add(key.replaceAll('\n', ' '));
+        dataLevelList.add(0);
+        List<String> auxiliaryList = List<String>.from(value["auxiliary"]
+            .map((term) => term["title"].replaceAll('\n', ' ')));
+        dataTermList += auxiliaryList;
+        dataLevelList += List.generate(auxiliaryList.length, (e) => 1);
+      } else {
+        int termIndex = dataTermList.indexOf(key.replaceAll('\n', ' '));
+        List<String> auxiliaryList = List<String>.from(value["auxiliary"]
+            .map((term) => term["title"].replaceAll('\n', ' ')));
+        ;
+        dataTermList.insertAll(termIndex + 1, auxiliaryList);
+        int termLevel = dataLevelList[termIndex];
+        dataLevelList.insertAll(termIndex + 1,
+            List.generate(auxiliaryList.length, (e) => termLevel + 1));
+      }
+    });
+    print(data[8]["terms"].length);
+    print(dataTermList.length);
+    print(dataLevelList.length);
+    File f = File(
+        "C:/Users/David/lynklynk-app/assets/project-constellation-set.txt");
+    String content = '';
+    // await db.execute(
+    //     "DELETE FROM constellation_table WHERE name=project-constellation-set");
+    // await db.insert('constellation_table',
+    //     {'name': "project-constellation-set", 'bullet_list': "$dataLevelList"});
+    for (int i = 0; i < dataTermList.length; i++) {
+      if (i < dataTermList.length - 1) {
+        content += dataTermList[i] + '\n';
+      } else {
+        content += dataTermList[i];
+      }
+    }
+    f.writeAsString(content);
   }
 
   @override
@@ -466,7 +514,9 @@ class _Loader extends State<Loader> {
                                                                                       Navigator.pop(context);
                                                                                       Navigator.push(
                                                                                         context,
-                                                                                        MaterialPageRoute(builder: (context) => Editor(path: "$directoryName/$constellationName.txt", isPath: true, fileName: constellationName)),
+                                                                                        MaterialPageRoute(builder: (context) => Test(path: "$directoryName/$constellationName.txt", fileName: constellationName)
+                                                                                            // Editor(path: "$directoryName/$constellationName.txt", isPath: true, fileName: constellationName)
+                                                                                            ),
                                                                                       );
                                                                                     }
                                                                                   }
@@ -489,76 +539,7 @@ class _Loader extends State<Loader> {
                                                             );
                                                           },
                                                         );
-                                                      }
-
-                                                      // Form(
-                                                      //         key: _formKey,
-                                                      //         child: Column(
-                                                      //           children: <Widget>[
-                                                      //             TextFormField(
-                                                      //               controller:
-                                                      //                   newConstellationNameController,
-
-                                                      //               // The validator receives the text that the user has entered.
-                                                      //               validator:
-                                                      //                   (value) {
-                                                      //                 if (value ==
-                                                      //                         null ||
-                                                      //                     value.isEmpty) {
-                                                      //                   return 'Please enter some text';
-                                                      //                 }
-                                                      //                 return null;
-                                                      //               },
-                                                      //             ),
-                                                      //             TextButton(
-                                                      //               onPressed:
-                                                      //                   () async {
-                                                      //                 if (_formKey
-                                                      //                     .currentState!
-                                                      //                     .validate()) {
-                                                      //                   _formKey
-                                                      //                       .currentState
-                                                      //                       ?.save();
-                                                      //                   String
-                                                      //                       constellationName =
-                                                      //                       newConstellationNameController.text;
-                                                      //                   print(
-                                                      //                       constellationName);
-                                                      //                   int recordId = await db.insert(
-                                                      //                       'constellation_table',
-                                                      //                       {
-                                                      //                         'name': constellationName,
-                                                      //                         'lines': '[]',
-                                                      //                         'bullet': '[]'
-                                                      //                       });
-                                                      //                 }
-                                                      //               },
-                                                      //               child: const Text(
-                                                      //                   'OK'),
-                                                      //             ),
-                                                      //           ],
-                                                      //         ),
-                                                      //       ),
-
-                                                      // onPressed: () async {
-                                                      //   int recordId =
-                                                      //       await db.insert(
-                                                      //           'constellation_table',
-                                                      //           {
-                                                      //         'name':
-                                                      //             'file1',
-                                                      //         'lines':
-                                                      //             'my_type',
-                                                      //         'bullet':
-                                                      //             'bullets'
-                                                      //       });}
-                                                      // Navigator.push(
-                                                      //   context,
-                                                      //   MaterialPageRoute(
-                                                      //       builder: (context) => const Editor(
-                                                      //           path: './samples/test.txt')),
-                                                      // );
-                                                      ))),
+                                                      }))),
                                           const SizedBox(
                                             width: 20,
                                           ),
@@ -676,18 +657,33 @@ class _Loader extends State<Loader> {
                                                           Navigator.push(
                                                             context,
                                                             MaterialPageRoute(
-                                                                builder: (context) => Editor(
+                                                                builder: (context) => Test(
                                                                     path: fileUploadResult.paths[
                                                                             0] ??
                                                                         defaultFileName,
-                                                                    isPath:
-                                                                        true,
                                                                     fileName:
                                                                         fileUploadResult.names[0] ??
-                                                                            "")),
+                                                                            "")
+
+                                                                // Editor(
+                                                                //     path: fileUploadResult.paths[
+                                                                //             0] ??
+                                                                //         defaultFileName,
+                                                                //     isPath:
+                                                                //         true,
+                                                                //     fileName:
+                                                                //         fileUploadResult.names[0] ??
+                                                                //             "")
+
+                                                                ),
                                                           );
                                                         }
                                                       }))),
+                                          TextButton(
+                                              onPressed: () {
+                                                readJson();
+                                              },
+                                              child: Text("tesser1"))
                                         ]),
                                     SizedBox(height: 20),
                                     const Row(
@@ -748,41 +744,6 @@ class _Loader extends State<Loader> {
                                                       ['access_date']);
                                             }))
                                   ]))),
-                      // Padding(
-                      //     padding: const EdgeInsets.all(10),
-                      //     child: Container(
-                      //         width: 400,
-                      //         alignment: Alignment.centerRight,
-                      //         decoration: const BoxDecoration(
-                      //           color: Color.fromARGB(255, 234, 135, 54),
-                      //           // border: Border(
-                      //           //     left: BorderSide(
-                      //           //         width: 4,
-                      //           //         color: Color.fromARGB(
-                      //           //             255, 182, 93, 93)))
-                      //         ),
-                      //         child: Padding(
-                      //             padding: EdgeInsets.all(8),
-                      //             child: Container(
-                      //                 decoration: const BoxDecoration(
-                      //                     border: Border(
-                      //                         left: BorderSide(
-                      //                             width: 2,
-                      //                             color: Color.fromARGB(
-                      //                                 255, 242, 184, 102)),
-                      //                         right: BorderSide(
-                      //                             width: 2,
-                      //                             color: Color.fromARGB(
-                      //                                 255, 242, 184, 102)),
-                      //                         bottom: BorderSide(
-                      //                             width: 2,
-                      //                             color: Color.fromARGB(
-                      //                                 255, 242, 231, 201)),
-                      //                         top: BorderSide(
-                      //                             width: 2,
-                      //                             color:
-                      //                                 Color.fromARGB(255, 85, 46, 46)))),
-                      //                 child: const Image(image: AssetImage("images/title_asset.png"))))))
                     ]))));
   }
 }
@@ -890,11 +851,15 @@ class _ViewLine extends State<ViewLine> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (context) => Editor(
-                                      path: pathName,
-                                      isPath: true,
-                                      fileName: name.split(".")[0],
-                                    )),
+                                builder: (context) => Test(
+                                    path: pathName,
+                                    fileName: name.split(".")[0])
+                                // Editor(
+                                //       path: pathName,
+                                //       isPath: true,
+                                //       fileName: name.split(".")[0],
+                                //     )
+                                ),
                           );
                           print("pressed");
                         },
@@ -920,5 +885,3 @@ class _ViewLine extends State<ViewLine> {
         ]));
   }
 }
-
-

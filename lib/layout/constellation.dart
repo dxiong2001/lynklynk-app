@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:lynklynk/utils/stack.dart' as Stack;
 import 'package:flip_card/flip_card.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class Constellation extends StatefulWidget {
   const Constellation(
@@ -28,7 +29,6 @@ class _Constellation extends State<Constellation> {
   @override
   void initState() {
     _initProcess();
-    print(mappingTable);
 
     super.initState();
   }
@@ -43,6 +43,15 @@ class _Constellation extends State<Constellation> {
       print("Error: Exited early due to bulletList and textList issue");
       return;
     }
+
+    // for (int i = 0; i < widget.bulletList.length; i++) {
+    //   if (widget.textList[i].isEmpty) {
+    //     widget.textList.removeAt(i);
+    //     widget.bulletList.removeAt(i);
+    //     i--;
+    //   }
+    // }
+
     if (widget.bulletList.length != widget.textList.length) {
       if (widget.bulletList.length > widget.textList.length) {
         print(
@@ -80,53 +89,76 @@ class _Constellation extends State<Constellation> {
     setTerm(widget.line);
   }
 
-  Widget auxiliary(String term, int index, String ledger) {
+  Widget auxiliary(String term, int index, String ledger, Map record) {
     bool showSubNodes = false;
     if (index > 5) {
+      return SizedBox();
+    }
+
+    if (record[term] != null) {
       return SizedBox();
     }
 
     if (auxiliaryTable[ledger + term] == null) {
       auxiliaryTable[ledger + term] = false;
     }
-
-    return Container(
-        child: Column(children: [
-      Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.all(Radius.circular(6)),
-            border: Border.all(color: Colors.black, width: 1),
-          ),
-          padding: EdgeInsets.all(15),
-          margin: EdgeInsets.only(top: 5, bottom: 5, left: index * 12),
-          child: Row(children: [
-            GestureDetector(
-                onTap: () {
-                  setTerm(term);
-                  setState(() {});
-                },
-                child: Text(term)),
-            index < 5
-                ? IconButton(
-                    onPressed: () {
-                      auxiliaryTable[ledger + term] =
-                          !auxiliaryTable[ledger + term];
-                      setState(() {});
-                      print(showSubNodes);
-                    },
-                    icon: const Icon(Icons.arrow_drop_down_sharp))
+    print(record);
+    record[term] = true;
+    print(record);
+    return term.isEmpty
+        ? SizedBox()
+        : Container(
+            child: Column(children: [
+            Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.all(Radius.circular(6)),
+                  border: Border.all(color: Colors.black, width: 1),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                margin: EdgeInsets.only(top: 5, bottom: 5, left: index * 15),
+                child: Row(children: [
+                  ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: 36),
+                      child: Container(
+                          alignment: Alignment.centerLeft,
+                          width: 570 - index * 15,
+                          padding: EdgeInsets.only(right: 18),
+                          decoration: const BoxDecoration(
+                              border: Border(
+                                  right: BorderSide(
+                                      width: 0.5, color: Colors.black))),
+                          child: GestureDetector(
+                              onTap: () {
+                                setTerm(term);
+                                setState(() {});
+                              },
+                              child: AutoSizeText(
+                                term,
+                              )))),
+                  const Spacer(),
+                  index < 5
+                      ? IconButton(
+                          onPressed: () {
+                            auxiliaryTable[ledger + term] =
+                                !auxiliaryTable[ledger + term];
+                            setState(() {});
+                            print(showSubNodes);
+                          },
+                          icon: !auxiliaryTable[ledger + term]
+                              ? const Icon(Icons.arrow_drop_down_sharp)
+                              : const Icon(Icons.arrow_drop_up_sharp))
+                      : const SizedBox()
+                ])),
+            auxiliaryTable[ledger + term]
+                ? Container(
+                    child: Column(
+                        children: mappingTable[term]
+                            .map<Widget>((item) => auxiliary(
+                                item, index + 1, "$ledger-$term", record))
+                            .toList()))
                 : const SizedBox()
-          ])),
-      auxiliaryTable[ledger + term]
-          ? Container(
-              child: Column(
-                  children: mappingTable[term]
-                      .map<Widget>(
-                          (item) => auxiliary(item, index + 1, "$ledger-$term"))
-                      .toList()))
-          : const SizedBox()
-    ]));
+          ]));
   }
 
   @override
@@ -339,7 +371,7 @@ class _Constellation extends State<Constellation> {
         ),
         body: SingleChildScrollView(
             child: Container(
-                color: Color.fromARGB(255, 233, 237, 246),
+                color: const Color.fromARGB(255, 233, 237, 246),
                 width: 800,
                 child: Column(children: [
                   Row(children: [
@@ -353,9 +385,9 @@ class _Constellation extends State<Constellation> {
                       child: Column(children: [
                     Card(
                       elevation: 0.0,
-                      margin: EdgeInsets.only(
+                      margin: const EdgeInsets.only(
                           left: 32.0, right: 32.0, top: 20.0, bottom: 0.0),
-                      color: Color(0x00000000),
+                      color: Colors.black,
                       child: FlipCard(
                         direction: FlipDirection.HORIZONTAL,
                         side: CardSide.FRONT,
@@ -367,19 +399,24 @@ class _Constellation extends State<Constellation> {
                           height: 300,
                           width: 650,
                           decoration: BoxDecoration(
-                              color: Color.fromARGB(255, 255, 255, 255),
+                              color: const Color.fromARGB(255, 255, 255, 255),
                               borderRadius:
-                                  BorderRadius.all(Radius.circular(8.0)),
+                                  const BorderRadius.all(Radius.circular(8.0)),
                               border:
                                   Border.all(color: Colors.black, width: 1)),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: <Widget>[
-                              Text(
-                                currentTerm,
-                                style: const TextStyle(
-                                    fontSize: 24, fontWeight: FontWeight.bold),
-                              ),
+                              Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 5, horizontal: 25),
+                                  child: AutoSizeText(
+                                    currentTerm,
+                                    maxLines: 9,
+                                    style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold),
+                                  )),
                             ],
                           ),
                         ),
@@ -406,9 +443,9 @@ class _Constellation extends State<Constellation> {
                             padding: EdgeInsets.symmetric(vertical: 15),
                             child: ExpansionTile(
                               shape: const Border(),
-                              title: Text('Auxiliaries'),
+                              title: const Text('Auxiliaries'),
                               children: currentTermChildren
-                                      .map((item) => auxiliary(item, 0, ""))
+                                      .map((item) => auxiliary(item, 0, "", {}))
                                       .toList() +
                                   [Container(height: 10)],
                             ))),

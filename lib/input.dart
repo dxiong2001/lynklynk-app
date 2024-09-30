@@ -139,8 +139,21 @@ class _InputListener extends State<InputListener> {
       case 'Backspace':
         if (d.cursor.hasSelection()) {
           d.deleteSelectedText();
+          d.resetCurrent();
         } else {
+          print(d.getCurrent());
           d.deleteText();
+          d.deleteLastCharCurrent();
+          print("-------------");
+          print(d.getCurrent());
+          print("-------------");
+          if (d.getCurrent().length > 2) {
+            print("-------------");
+            print(d.suggestion.getSuggestion(d.getCurrent()));
+            d.updateSuggestionList(d.suggestion.getSuggestion(d.getCurrent()));
+          } else {
+            d.clearSuggestList();
+          }
         }
         break;
       case 'Delete':
@@ -166,6 +179,10 @@ class _InputListener extends State<InputListener> {
         d.moveCursorDown(
             keepAnchor: event.logicalKey == LogicalKeyboardKey.shift);
         break;
+      case ' ':
+        d.insertText(" ");
+        d.resetCurrent();
+        break;
 
       default:
         {
@@ -189,16 +206,32 @@ class _InputListener extends State<InputListener> {
               d.command('ctrl+$ch');
               break;
             }
+
             if (d.getShiftActive()) {
               d.insertText(ch.toUpperCase());
+              d.updateCurrent(ch.toUpperCase());
+              if (d.getCurrent().length > 2) {
+                // print(d.suggestion.getSuggestion(d.getCurrent()));
+                d.updateSuggestionList(
+                    d.suggestion.getSuggestion(d.getCurrent()));
+              }
             } else {
               d.insertText(ch);
+              d.updateCurrent(ch);
+              if (d.getCurrent().length > 2) {
+                d.updateSuggestionList(
+                    d.suggestion.getSuggestion(d.getCurrent()));
+              }
             }
             break;
           }
         }
         if (event.logicalKey.keyLabel.length == 1) {
           d.insertText(event.logicalKey.keyLabel);
+          d.updateCurrent(event.logicalKey.keyLabel);
+          if (d.getCurrent().length > 2) {
+            d.updateSuggestionList(d.suggestion.getSuggestion(d.getCurrent()));
+          }
         }
         // print(event.logicalKey.keyLabel);
         break;
