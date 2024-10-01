@@ -957,21 +957,27 @@ class _Test extends State<Test> {
                                                                     ? ListView.builder(
                                                                         shrinkWrap: true,
                                                                         itemCount: suggestionList.length < 6 ? suggestionList.length : 6,
-                                                                        itemBuilder: (BuildContext context, int index) {
+                                                                        itemBuilder: (BuildContext context, int suggestionIndex) {
                                                                           return Container(
                                                                             padding:
-                                                                                EdgeInsets.only(bottom: 10, left: 56),
+                                                                                const EdgeInsets.only(bottom: 10, left: 56),
                                                                             // decoration:
                                                                             //     const BoxDecoration(border: Border(top: BorderSide(width: 1, color: Colors.black))),
                                                                             height:
                                                                                 30,
 
-                                                                            child:
-                                                                                Text(
-                                                                              overflow: TextOverflow.ellipsis,
-                                                                              suggestionList[index],
-                                                                              textAlign: TextAlign.left,
-                                                                            ),
+                                                                            child: InkWell(
+                                                                                child: Text(
+                                                                                  overflow: TextOverflow.ellipsis,
+                                                                                  suggestionList[suggestionIndex],
+                                                                                  textAlign: TextAlign.left,
+                                                                                ),
+                                                                                onTap: () {
+                                                                                  setState(() {
+                                                                                    bulletControllerList[index].text = suggestionList[suggestionIndex];
+                                                                                    suggestionList = [];
+                                                                                  });
+                                                                                }),
                                                                           );
                                                                         })
                                                                     : SizedBox()
