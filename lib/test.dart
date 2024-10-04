@@ -79,6 +79,7 @@ class _Test extends State<Test> {
   final ScrollController reorderScrollController = ScrollController();
   List<String> suggestionList = [];
   String searchbarText = "";
+  bool inSuggestionArea = false;
 
   var db;
 
@@ -108,8 +109,6 @@ class _Test extends State<Test> {
     // fileString = fileString.replaceAll(r'\n', '\n');
     const splitter = LineSplitter();
     final linesList = splitter.convert(fileString);
-    print(linesList.length);
-    print(queryLevelList.length);
     for (var i = 0; i < linesList.length; i++) {
       setState(() => suggestion.addTerm(linesList[i]));
       bulletLevelList.add(queryLevelList[i]);
@@ -141,7 +140,6 @@ class _Test extends State<Test> {
         content += bulletControllerList[i].text;
       }
     }
-    print("$content");
     f.writeAsString(content);
 
     return true;
@@ -261,9 +259,6 @@ class _Test extends State<Test> {
   }
 
   void makeMain(int index, int level) {
-    print("----------------");
-
-    print(bulletLevelList);
     int levelTracker = level;
     int minRange = index;
     int maxRange = index;
@@ -277,7 +272,6 @@ class _Test extends State<Test> {
         }
       }
     }
-    print(nodePoints);
     Map<int, List<int>> nodeMapping = {};
     minRange = nodePoints[nodePoints.length - 1];
     for (int i = 0; i < nodePoints.length; i++) {
@@ -496,9 +490,20 @@ class _Test extends State<Test> {
                             fontSize: 16,
                           ),
                           onChanged: (e) {
+                            if (e.contains("\n")) {
+                              var splitLines = e.split('\n');
+                              bulletControllerList[index].text = splitLines[0];
+                              for (int i = 1; i < splitLines.length; i++) {
+                                insertBullet(index + i, splitLines[i]);
+                              }
+                              setState(() {});
+                              return;
+                            }
                             print(suggestion.getSuggestion(e));
                             setState(() {
                               suggestionList = suggestion.getSuggestion(e);
+                              var suggestionSet = {...suggestionList};
+                              suggestionList = suggestionSet.toList();
                             });
                           },
                           focusNode: bulletFocusList[index],
@@ -537,6 +542,17 @@ class _Test extends State<Test> {
         bullet(bulletList.length, bulletLevelList[bulletLevelList.length - 1]));
     bulletKeyList.add(UniqueKey());
     suggestion.addTerm("");
+  }
+
+  insertBullet(int index, String bulletText) {
+    bulletLevelList.insert(index, 0);
+    bulletControllerList.insert(index, TextEditingController(text: bulletText));
+    bulletFocusList.insert(index, FocusNode());
+
+    bulletList.insert(index,
+        bullet(bulletList.length, bulletLevelList[bulletLevelList.length - 1]));
+    bulletKeyList.insert(index, UniqueKey());
+    suggestion.addTerm(bulletText);
   }
 
   Widget proxyDecorator(Widget child, int index, Animation<double> animation) {
@@ -933,53 +949,65 @@ class _Test extends State<Test> {
                                                                     bulletLevelList[
                                                                         index]),
                                                                 focused == index &&
+                                                                        (inSuggestionArea ||
+                                                                            bulletFocusList[index]
+                                                                                .hasFocus) &&
                                                                         bulletControllerList[index]
                                                                             .text
                                                                             .isNotEmpty &&
                                                                         suggestionList
                                                                             .isNotEmpty
-                                                                    ? Container(
-                                                                        padding: const EdgeInsets
-                                                                            .symmetric(
-                                                                            vertical:
-                                                                                10,
-                                                                            horizontal:
-                                                                                56),
-                                                                        alignment:
-                                                                            Alignment
-                                                                                .centerLeft,
-                                                                        child: const Text(
-                                                                            style:
-                                                                                TextStyle(fontWeight: FontWeight.bold),
-                                                                            "Suggestions"))
-                                                                    : SizedBox(),
-                                                                focused == index
-                                                                    ? ListView.builder(
-                                                                        shrinkWrap: true,
-                                                                        itemCount: suggestionList.length < 6 ? suggestionList.length : 6,
-                                                                        itemBuilder: (BuildContext context, int suggestionIndex) {
-                                                                          return Container(
-                                                                            padding:
-                                                                                const EdgeInsets.only(bottom: 10, left: 56),
-                                                                            // decoration:
-                                                                            //     const BoxDecoration(border: Border(top: BorderSide(width: 1, color: Colors.black))),
-                                                                            height:
-                                                                                30,
+                                                                    ? MouseRegion(
+                                                                        onEnter:
+                                                                            (e) {
+                                                                          setState(
+                                                                              () {
+                                                                            inSuggestionArea =
+                                                                                true;
+                                                                          });
+                                                                        },
+                                                                        onExit:
+                                                                            (e) {
+                                                                          setState(
+                                                                              () {
+                                                                            inSuggestionArea =
+                                                                                false;
+                                                                          });
+                                                                        },
+                                                                        child:
+                                                                            Column(
+                                                                          children: [
+                                                                            Container(
+                                                                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 56),
+                                                                                alignment: Alignment.centerLeft,
+                                                                                child: const Text(style: TextStyle(fontWeight: FontWeight.bold), "Suggestions")),
+                                                                            ListView.builder(
+                                                                                shrinkWrap: true,
+                                                                                itemCount: suggestionList.length < 6 ? suggestionList.length : 6,
+                                                                                itemBuilder: (BuildContext context, int suggestionIndex) {
+                                                                                  return Container(
+                                                                                    padding: const EdgeInsets.only(bottom: 10, left: 56),
+                                                                                    // decoration:
+                                                                                    //     const BoxDecoration(border: Border(top: BorderSide(width: 1, color: Colors.black))),
+                                                                                    height: 30,
 
-                                                                            child: InkWell(
-                                                                                child: Text(
-                                                                                  overflow: TextOverflow.ellipsis,
-                                                                                  suggestionList[suggestionIndex],
-                                                                                  textAlign: TextAlign.left,
-                                                                                ),
-                                                                                onTap: () {
-                                                                                  setState(() {
-                                                                                    bulletControllerList[index].text = suggestionList[suggestionIndex];
-                                                                                    suggestionList = [];
-                                                                                  });
-                                                                                }),
-                                                                          );
-                                                                        })
+                                                                                    child: InkWell(
+                                                                                        child: Text(
+                                                                                          overflow: TextOverflow.ellipsis,
+                                                                                          suggestionList[suggestionIndex],
+                                                                                          textAlign: TextAlign.left,
+                                                                                        ),
+                                                                                        onTap: () {
+                                                                                          setState(() {
+                                                                                            print("test");
+                                                                                            bulletControllerList[index].text = suggestionList[suggestionIndex];
+                                                                                            suggestionList = [];
+                                                                                          });
+                                                                                        }),
+                                                                                  );
+                                                                                })
+                                                                          ],
+                                                                        ))
                                                                     : SizedBox()
                                                               ])))));
                                             },
@@ -1022,11 +1050,6 @@ class _Test extends State<Test> {
                                                               pageViewScrollController
                                                                   .position
                                                                   .maxScrollExtent);
-                                                      print(
-                                                          pageViewScrollController
-                                                              .position
-                                                              .maxScrollExtent);
-                                                      print("testttt");
                                                     });
                                                   },
                                                   icon: const Icon(Icons.add)))
