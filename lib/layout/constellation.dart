@@ -61,6 +61,7 @@ class _Constellation extends State<Constellation> {
     }
     Stack.Stack s = new Stack.Stack();
     for (int i = 0; i < widget.bulletList.length; i++) {
+      // print(s);
       String line = widget.textList[i];
       int index = widget.bulletList[i];
       if (i == 0) {
@@ -71,8 +72,9 @@ class _Constellation extends State<Constellation> {
       mappingTable.putIfAbsent(line, () => <String>[]);
       // if outside
       if (widget.bulletList[i] <= s.peek["index"]) {
-        s.pop();
-
+        while (s.isNotEmpty && s.peek["index"] >= index) {
+          s.pop();
+        }
         if (index != 0) {
           mappingTable[line].add(s.peek["line"]);
           mappingTable[s.peek["line"]].add(line);
@@ -85,7 +87,7 @@ class _Constellation extends State<Constellation> {
       }
       s.push({"index": index, "line": line});
     }
-    print(mappingTable);
+    // print(mappingTable);
     setTerm(widget.line);
   }
 

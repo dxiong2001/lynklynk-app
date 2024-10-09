@@ -827,7 +827,7 @@ class _Test extends State<Test> {
                             color: Color.fromARGB(255, 215, 222, 235),
                           ),
                           padding: const EdgeInsets.symmetric(
-                              vertical: 15, horizontal: 15),
+                              vertical: 1, horizontal: 15),
                           child: Column(children: [
                             Expanded(
                                 child: SingleChildScrollView(
