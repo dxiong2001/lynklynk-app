@@ -122,10 +122,10 @@ class ViewLine extends StatelessWidget {
                                 child: Container(
                                     height: 200,
                                     color: Colors.green,
-                                    padding: EdgeInsets.all(5),
+                                    padding: const EdgeInsets.all(5),
                                     child: highlight &&
                                             suggestionList.isNotEmpty
-                                        ? SizedBox()
+                                        ? const SizedBox()
                                         // ? ListView.builder(
                                         //     scrollDirection: Axis.vertical,
                                         //     itemCount: suggestionList.length,
@@ -144,9 +144,9 @@ class ViewLine extends StatelessWidget {
                                         //                 : suggestionList[index],
                                         //           ));
                                         //     })
-                                        : SizedBox()),
+                                        : const SizedBox()),
                               )
-                            : SizedBox(),
+                            : const SizedBox(),
                       ])))),
         ])
       ],
@@ -247,7 +247,7 @@ class _View extends State<View> {
                   color: Color.fromARGB(255, 181, 227, 247), width: 2)),
         ),
         child: IconButton(
-            padding: EdgeInsets.all(0.0),
+            padding: const EdgeInsets.all(0.0),
             style: IconButton.styleFrom(
               foregroundColor: const Color.fromARGB(255, 255, 255, 255),
               backgroundColor: const Color.fromARGB(255, 75, 185, 233),
@@ -424,7 +424,7 @@ class _View extends State<View> {
           ),
         ),
         drawer: Drawer(
-          backgroundColor: Color.fromARGB(255, 255, 255, 255),
+          backgroundColor: const Color.fromARGB(255, 255, 255, 255),
           child: ListView(
             children: <Widget>[
               SizedBox(
@@ -444,22 +444,22 @@ class _View extends State<View> {
                         )),
                   )),
               ListTile(
-                leading: Icon(Icons.home),
-                title: Text('Home'),
+                leading: const Icon(Icons.home),
+                title: const Text('Home'),
                 onTap: () {
                   // Handle menu item tap
                 },
               ),
               ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Settings'),
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
                 onTap: () {
                   // Handle menu item tap
                 },
               ),
               ListTile(
-                leading: Icon(Icons.exit_to_app),
-                title: Text('Logout'),
+                leading: const Icon(Icons.exit_to_app),
+                title: const Text('Logout'),
                 onTap: () {},
               ),
             ],

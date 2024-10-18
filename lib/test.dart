@@ -70,7 +70,7 @@ class ArrowAction extends Action<ArrowIntent> {
 
 class _Test extends State<Test> {
   bool maximized = false;
-  suggestions.Suggestions suggestion = new suggestions.Suggestions();
+  suggestions.Suggestions suggestion = suggestions.Suggestions();
   List<Bullet.Bullet> bulletList = [];
   int focused = -1;
   bool shift = false;
@@ -111,6 +111,8 @@ class _Test extends State<Test> {
     String fileName = widget.fileName;
     List<Map> queryResultsList =
         await db.rawQuery("SELECT * FROM constellation_table");
+    print(queryResultsList);
+    print(widget.fileName);
     Map queryResult = queryResultsList
         .where((item) => item["name"] == widget.fileName)
         .toList()[0];
@@ -123,6 +125,9 @@ class _Test extends State<Test> {
     // fileString = fileString.replaceAll(r'\n', '\n');
     const splitter = LineSplitter();
     final linesList = splitter.convert(fileString);
+    if (queryLevelList.isEmpty) {
+      queryLevelList = List.generate(linesList.length, (e) => 0);
+    }
     for (var i = 0; i < linesList.length; i++) {
       setState(() => suggestion.addTerm(linesList[i]));
 
@@ -132,9 +137,7 @@ class _Test extends State<Test> {
     if (bulletList.length > pageMaxBulletNumber) {
       showPageNavigateRightButton = true;
     }
-    print("-----------------------");
 
-    print(pageBulletNumber);
     pageBulletNumber = calculatePageBulletNumber();
     setState(() => {});
 
@@ -152,7 +155,7 @@ class _Test extends State<Test> {
       String controllerText = bulletList[i].controller.text;
       if (controllerText.isEmpty) continue;
       if (i < bulletList.length - 1) {
-        content += controllerText + '\n';
+        content += '$controllerText\n';
       } else {
         content += controllerText;
       }
@@ -295,8 +298,9 @@ class _Test extends State<Test> {
 
   int calculatePageBulletNumber() {
     int end = pageMaxBulletNumber * pageIndex;
-    if (bulletList.length < end)
+    if (bulletList.length < end) {
       return bulletList.length - pageMaxBulletNumber * (pageIndex - 1);
+    }
     return pageMaxBulletNumber;
   }
 
@@ -397,9 +401,6 @@ class _Test extends State<Test> {
   Future<void> showPopUpMenu(Offset globalPosition, int index) async {
     double left = globalPosition.dx;
     double top = globalPosition.dy;
-    print(left);
-    print(top);
-    print("-----------");
     await showMenu(
       color: Colors.white,
       //add your color
@@ -409,7 +410,7 @@ class _Test extends State<Test> {
         const PopupMenuItem(
           value: 1,
           child: Padding(
-            padding: const EdgeInsets.only(left: 0, right: 40),
+            padding: EdgeInsets.only(left: 0, right: 40),
             child: Row(
               children: [
                 Icon(Icons.edit_sharp),
@@ -427,7 +428,7 @@ class _Test extends State<Test> {
         const PopupMenuItem(
           value: 2,
           child: Padding(
-            padding: const EdgeInsets.only(left: 0, right: 40),
+            padding: EdgeInsets.only(left: 0, right: 40),
             child: Row(
               children: [
                 Icon(Icons.delete_forever_sharp),
@@ -485,7 +486,7 @@ class _Test extends State<Test> {
             padding: const EdgeInsets.only(left: 0, right: 10),
             child: Row(children: [
               Container(
-                  padding: EdgeInsets.all(15),
+                  padding: const EdgeInsets.all(15),
                   child: focused == index
                       ? const Icon(size: 10, Icons.circle)
                       : const Icon(size: 10, Icons.circle_outlined)),
@@ -555,7 +556,7 @@ class _Test extends State<Test> {
                           controller: bulletList[index].controller,
                         )),
                   ))),
-              Spacer(),
+              const Spacer(),
               level == 0
                   ? ReorderableDragStartListener(
                       index: index,
@@ -568,8 +569,8 @@ class _Test extends State<Test> {
                           onPressed: () {
                             makeMain(index, level);
                           },
-                          icon: Icon(Icons.star_border))),
-              SizedBox(width: 8),
+                          icon: const Icon(Icons.star_border))),
+              const SizedBox(width: 8),
             ])));
   }
 
@@ -634,6 +635,7 @@ class _Test extends State<Test> {
             },
             child: Scaffold(
                 appBar: AppBar(
+                  scrolledUnderElevation: 0,
                   toolbarHeight: 40,
                   titleSpacing: 0,
                   primary: false,
@@ -641,10 +643,10 @@ class _Test extends State<Test> {
                   shape: const Border(
                       bottom: BorderSide(
                           color: Color.fromARGB(255, 64, 70, 81), width: 0.5)),
-                  backgroundColor: Color.fromARGB(255, 255, 255, 255),
+                  backgroundColor: const Color.fromARGB(255, 255, 255, 255),
                   // backgroundColor: const Color.fromARGB(255, 75, 185, 233),
                   title: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
                       child: GestureDetector(
                           onHorizontalDragStart: (e) {
                             WindowManager.instance.startDragging();
@@ -657,7 +659,7 @@ class _Test extends State<Test> {
                             // Color.fromARGB(255, 75, 185, 233),
 
                             child: Container(
-                              color: Color.fromARGB(255, 255, 255, 255),
+                              color: const Color.fromARGB(255, 255, 255, 255),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
@@ -671,8 +673,8 @@ class _Test extends State<Test> {
                                       child: IconButton(
                                         padding: EdgeInsets.zero,
                                         style: IconButton.styleFrom(
-                                          foregroundColor:
-                                              Color.fromARGB(255, 0, 0, 0),
+                                          foregroundColor: const Color.fromARGB(
+                                              255, 0, 0, 0),
                                         ),
                                         onPressed: () {
                                           WindowManager.instance.minimize();
@@ -694,7 +696,8 @@ class _Test extends State<Test> {
                                       child: IconButton(
                                           style: IconButton.styleFrom(
                                             foregroundColor:
-                                                Color.fromARGB(255, 0, 0, 0),
+                                                const Color.fromARGB(
+                                                    255, 0, 0, 0),
                                           ),
                                           onPressed: () {
                                             if (maximized) {
@@ -710,7 +713,7 @@ class _Test extends State<Test> {
                                               size: 12,
                                               Icons.web_asset_sharp))),
                                   const SizedBox(width: 10),
-                                  Container(
+                                  SizedBox(
                                       width: 20,
                                       height: 20,
                                       // decoration: BoxDecoration(
@@ -720,8 +723,8 @@ class _Test extends State<Test> {
                                       child: IconButton(
                                         padding: EdgeInsets.zero,
                                         style: IconButton.styleFrom(
-                                          foregroundColor:
-                                              Color.fromARGB(255, 0, 0, 0),
+                                          foregroundColor: const Color.fromARGB(
+                                              255, 0, 0, 0),
                                         ),
                                         onPressed: () {
                                           WindowManager.instance.close();
@@ -737,7 +740,7 @@ class _Test extends State<Test> {
                             ),
                           ))),
                   leading: Builder(
-                    builder: (context) => Icon(Icons.rocket_launch_sharp),
+                    builder: (context) => const Icon(Icons.rocket_launch_sharp),
                   ),
                 ),
                 body: Column(children: [
@@ -747,7 +750,7 @@ class _Test extends State<Test> {
                             bottom:
                                 BorderSide(width: 0.5, color: Colors.black)),
                       ),
-                      padding: EdgeInsets.symmetric(horizontal: 15),
+                      padding: const EdgeInsets.symmetric(horizontal: 15),
                       height: 55,
                       child: Row(
                         children: [
@@ -758,7 +761,7 @@ class _Test extends State<Test> {
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(5),
                                   border: Border.all(
-                                      color: Color.fromARGB(255, 0, 0, 0),
+                                      color: const Color.fromARGB(255, 0, 0, 0),
                                       width: 0.5)),
                               child: IconButton(
                                 padding: EdgeInsets.zero,
@@ -779,7 +782,7 @@ class _Test extends State<Test> {
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(5),
                                   border: Border.all(
-                                      color: Color.fromARGB(255, 0, 0, 0),
+                                      color: const Color.fromARGB(255, 0, 0, 0),
                                       width: 0.5)),
                               child: IconButton(
                                   padding: EdgeInsets.zero,
@@ -789,7 +792,8 @@ class _Test extends State<Test> {
                                   onPressed: () {
                                     saveFile(widget.path);
                                   },
-                                  icon: Icon(size: 20, Icons.save_sharp))),
+                                  icon:
+                                      const Icon(size: 20, Icons.save_sharp))),
                           const SizedBox(width: 10),
                           Container(
                               height: 30,
@@ -798,7 +802,7 @@ class _Test extends State<Test> {
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(5),
                                   border: Border.all(
-                                      color: Color.fromARGB(255, 0, 0, 0),
+                                      color: const Color.fromARGB(255, 0, 0, 0),
                                       width: 0.5)),
                               child: IconButton(
                                   padding: EdgeInsets.zero,
@@ -808,15 +812,17 @@ class _Test extends State<Test> {
                                   onPressed: () {
                                     saveFile(widget.path);
                                   },
-                                  icon: Icon(size: 20, Icons.settings_sharp))),
-                          Spacer(),
+                                  icon: const Icon(
+                                      size: 20, Icons.settings_sharp))),
+                          const Spacer(),
                           Container(
                               width: min(
                                   MediaQuery.of(context).size.width - 200, 700),
                               height: 40,
-                              margin: EdgeInsets.all(10),
+                              margin: const EdgeInsets.all(10),
                               child: SearchField<String>(
                                   onSearchTextChanged: (String e) {
+                                    if (e.isEmpty) return [];
                                     return suggestion
                                         .getSuggestion(e)
                                         .map((e) => SearchFieldListItem<String>(
@@ -834,14 +840,23 @@ class _Test extends State<Test> {
                                                           overflow: TextOverflow
                                                               .ellipsis))
                                                 ]))))
+                                        .toList()
+                                        .getRange(
+                                            0,
+                                            suggestion.getSuggestion(e).length <
+                                                    6
+                                                ? suggestion
+                                                    .getSuggestion(e)
+                                                    .length
+                                                : 6)
                                         .toList();
                                   },
                                   dynamicHeight: true,
                                   searchInputDecoration: SearchInputDecoration(
                                       cursorWidth: 1,
                                       filled: true,
-                                      fillColor:
-                                          Color.fromARGB(49, 165, 165, 165),
+                                      fillColor: const Color.fromARGB(
+                                          49, 165, 165, 165),
                                       focusedBorder: OutlineInputBorder(
                                           borderSide: const BorderSide(
                                             color: Color.fromARGB(
@@ -912,7 +927,7 @@ class _Test extends State<Test> {
                                         //     bottomRight: Radius.circular(5)),
                                         border: Border(
                                             bottom: BorderSide(
-                                                color: const Color.fromARGB(
+                                                color: Color.fromARGB(
                                                     255, 169, 169, 169)))),
                                     child: SingleChildScrollView(
                                         scrollDirection: Axis.vertical,
@@ -1074,13 +1089,13 @@ class _Test extends State<Test> {
                                                                                     })
                                                                               ],
                                                                             ))
-                                                                        : SizedBox()
+                                                                        : const SizedBox()
                                                                   ])))));
                                                 },
                                               ),
                                             ]))))),
                             Container(
-                                margin: EdgeInsets.only(bottom: 6),
+                                margin: const EdgeInsets.only(bottom: 6),
                                 child: Row(children: [
                                   showPageNavigateLeftButton
                                       ? Container(
@@ -1143,7 +1158,7 @@ class _Test extends State<Test> {
                                   //           });
                                   //         },
                                   //         icon: const Icon(Icons.add))),
-                                  Spacer(),
+                                  const Spacer(),
                                   showPageNavigateRightButton
                                       ? Container(
                                           height: 30,

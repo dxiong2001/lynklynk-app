@@ -53,7 +53,7 @@ class Document {
   List<int> bulletLevel = List.generate(1, (index) => 0);
   double fontSize = 16.0;
   bool disableClick = false;
-  Suggestions.Suggestions suggestion = new Suggestions.Suggestions();
+  Suggestions.Suggestions suggestion = Suggestions.Suggestions();
   List<String> suggestionList = <String>[];
 
   Future<bool> openFile(String path) async {
@@ -114,13 +114,13 @@ class Document {
     int i;
     for (i = 0; i < lines.length; i++) {
       if (i < lines.length - 1) {
-        content += lines[i] + '\n';
+        content += '${lines[i]}\n';
       } else {
         content += lines[i];
       }
     }
     print(bulletLevel);
-    print("$content");
+    print(content);
     suggestion.initTerms(lines);
     f.writeAsString(content);
     return true;

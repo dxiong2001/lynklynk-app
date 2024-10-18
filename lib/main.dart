@@ -7,6 +7,7 @@ import 'input.dart';
 import 'highlighter.dart';
 import 'package:lynklynk/loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,10 +75,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          fontFamily: 'Times',
-          primaryColor: foreground,
-          scaffoldBackgroundColor: Color.fromARGB(255, 255, 255, 255),
-        ),
+            textTheme: GoogleFonts.latoTextTheme(
+              Theme.of(context).textTheme,
+            ),
+            primaryColor: foreground,
+            scaffoldBackgroundColor: Colors.white,
+            scrollbarTheme: ScrollbarThemeData(
+              thumbVisibility: WidgetStateProperty.all<bool>(true),
+            )),
         home: const Scaffold(body: Loader()));
   }
 }

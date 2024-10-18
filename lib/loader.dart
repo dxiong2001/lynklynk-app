@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'dart:io';
@@ -25,6 +28,10 @@ class _Loader extends State<Loader> {
   TextEditingController newConstellationNameController =
       TextEditingController();
   String directoryName = "";
+  List<String> fileNameList = [];
+  Color secondaryColor = const Color.fromARGB(255, 82, 72, 159);
+  List<bool> checkBoxActiveList = [];
+  int checkBoxActiveCount = 0;
   var db;
   @override
   void initState() {
@@ -65,19 +72,26 @@ class _Loader extends State<Loader> {
       await db.execute(
           'CREATE TABLE IF NOT EXISTS constellation_table (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, bullet_list TEXT)');
       await db.execute(
-          'CREATE TABLE IF NOT EXISTS loader_data_table (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, file_path TEXT, access_date TEXT)');
-
+          'CREATE TABLE IF NOT EXISTS loader_data_table (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, file_path TEXT, access_date TEXT, external INTEGER)');
+      // await db.execute(
+      //     'ALTER TABLE loader_data_table ADD COLUMN external INTEGER DEFAULT 0');
       // int recordId = await db.insert('constellation_table',
       //     {'name': 'file1', 'lines': 'my_type', 'bullet': 'bullets'});
       // List<Map> queryResults =
       //     await db.rawQuery("SELECT count(*) FROM constellation_table");
       List<Map> queryResultsList =
           await db.rawQuery("SELECT * FROM loader_data_table");
+      print(await db.rawQuery("SELECT * FROM constellation_table"));
+      print(queryResultsList);
 
       setState(() {
         directoryFiles = queryResultsList;
-        newConstellationNameController = TextEditingController(
-            text: "Constellation #${directoryFiles.length + 1}");
+        fileNameList = directoryFiles.map((e) => e["name"].toString()).toList();
+        newConstellationNameController =
+            TextEditingController(text: _validFileName("Constellation"));
+        checkBoxActiveList = List.generate(fileNameList.length, (e) {
+          return false;
+        });
         db = retrievedDB;
       });
     } catch (e) {
@@ -85,23 +99,61 @@ class _Loader extends State<Loader> {
     }
   }
 
+  updateCheckBoxActive(int index, bool check) {
+    setState(() {
+      if (check) {
+        checkBoxActiveList[index] = true;
+        checkBoxActiveCount += 1;
+      } else {
+        checkBoxActiveList[index] = false;
+        checkBoxActiveCount -= 1;
+      }
+    });
+  }
+
+  removeEntries() async {
+    print(checkBoxActiveList);
+    for (int i = 0; i < checkBoxActiveList.length; i++) {
+      if (checkBoxActiveList[i]) {
+        await removeEntry(directoryFiles[i]["id"]);
+        print("---------1");
+        print(await db.rawQuery("SELECT * FROM loader_data_table"));
+        setState(() {
+          checkBoxActiveList.removeAt(i);
+          print(fileNameList[i]);
+          directoryFiles = List.from(directoryFiles)..removeAt(i);
+          fileNameList.removeAt(i);
+        });
+        i--;
+      }
+    }
+    _refreshLists();
+    print(fileNameList);
+  }
+
   removeEntry(int idNumber) async {
     await db.execute("DELETE FROM loader_data_table WHERE id=$idNumber");
     await db.execute("DELETE FROM constellation_table WHERE id=$idNumber");
-    List<Map> queryResultsList =
-        await db.rawQuery("SELECT * FROM loader_data_table");
-    setState(() {
-      directoryFiles = queryResultsList;
-    });
+    // List<Map> queryResultsList =
+    //     await db.rawQuery("SELECT * FROM loader_data_table");
+    // setState(() {
+    //   directoryFiles = queryResultsList;
+    //   fileNameList = directoryFiles.map((e) => e["name"].toString()).toList();
+    // });
 
     print("deleted row $idNumber");
   }
 
-  _refreshDirectoryList() async {
+  _refreshLists() async {
     List<Map> queryResultsList =
         await db.rawQuery("SELECT * FROM loader_data_table");
     setState(() {
       directoryFiles = queryResultsList;
+      print(directoryFiles);
+      fileNameList = directoryFiles.map((e) => e["name"].toString()).toList();
+      checkBoxActiveList = List.generate(fileNameList.length, (e) {
+        return false;
+      });
     });
   }
 
@@ -127,9 +179,21 @@ class _Loader extends State<Loader> {
 
   bool _validateFileName(String name) {
     var existingItem =
-        directoryFiles.firstWhereOrNull((element) => element["name"] == name);
-
+        fileNameList.firstWhereOrNull((element) => element == name);
+    print(fileNameList);
     return existingItem != null;
+  }
+
+  String _validFileName(String name) {
+    int index = 1;
+    String newFileName = "$name ($index)";
+    while (fileNameList.firstWhereOrNull((element) => element == newFileName) !=
+        null) {
+      index += 1;
+      newFileName = "$name ($index)";
+    }
+
+    return newFileName;
   }
 
   Future<void> readJson() async {
@@ -151,7 +215,6 @@ class _Loader extends State<Loader> {
         int termIndex = dataTermList.indexOf(key.replaceAll('\n', ' '));
         List<String> auxiliaryList = List<String>.from(value["auxiliary"]
             .map((term) => term["title"].replaceAll('\n', ' ')));
-        ;
         dataTermList.insertAll(termIndex + 1, auxiliaryList);
         int termLevel = dataLevelList[termIndex];
         dataLevelList.insertAll(termIndex + 1,
@@ -170,7 +233,7 @@ class _Loader extends State<Loader> {
     //     {'name': "project-constellation-set", 'bullet_list': "$dataLevelList"});
     for (int i = 0; i < dataTermList.length; i++) {
       if (i < dataTermList.length - 1) {
-        content += dataTermList[i] + '\n';
+        content += '${dataTermList[i]}\n';
       } else {
         content += dataTermList[i];
       }
@@ -182,100 +245,68 @@ class _Loader extends State<Loader> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          shape: const Border(
-              bottom:
-                  BorderSide(color: Color.fromARGB(255, 64, 70, 81), width: 3),
-              right: BorderSide(
-                  color: Color.fromARGB(255, 205, 209, 218), width: 3),
-              left: BorderSide(
-                  color: Color.fromARGB(255, 205, 209, 218), width: 3),
-              top: BorderSide(
-                  color: Color.fromARGB(255, 205, 209, 218), width: 3)),
+          scrolledUnderElevation: 0,
+          toolbarHeight: 40,
           titleSpacing: 0,
           primary: false,
-          backgroundColor: const Color.fromARGB(255, 75, 185, 233),
-          title: GestureDetector(
-              onHorizontalDragStart: (e) {
-                WindowManager.instance.startDragging();
-              },
-              onVerticalDragStart: (e) {
-                WindowManager.instance.startDragging();
-              },
-              child: Container(
-                color: const Color.fromARGB(255, 233, 237, 246),
-                // Color.fromARGB(255, 75, 185, 233),
 
-                child: Container(
-                    color: const Color.fromARGB(255, 50, 73, 126),
+          shape: const Border(
+              bottom: BorderSide(
+                  color: Color.fromARGB(255, 64, 70, 81), width: 0.5)),
+          backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+          // backgroundColor: const Color.fromARGB(255, 75, 185, 233),
+          title: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              child: GestureDetector(
+                  onHorizontalDragStart: (e) {
+                    WindowManager.instance.startDragging();
+                  },
+                  onVerticalDragStart: (e) {
+                    WindowManager.instance.startDragging();
+                  },
+                  child: Container(
+                    color: const Color.fromARGB(255, 233, 237, 246),
+                    // Color.fromARGB(255, 75, 185, 233),
+
                     child: Container(
-                      color: const Color.fromARGB(255, 75, 185, 233),
+                      color: const Color.fromARGB(255, 255, 255, 255),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           const SizedBox(width: 10),
                           Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(
-                                        color: Color.fromARGB(255, 64, 70, 81),
-                                        width: 2),
-                                    right: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    left: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    top: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2)),
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
                               ),
                               child: IconButton(
+                                padding: EdgeInsets.zero,
                                 style: IconButton.styleFrom(
                                   foregroundColor:
-                                      const Color.fromARGB(255, 255, 255, 255),
-                                  backgroundColor:
-                                      const Color.fromARGB(255, 75, 185, 233),
-                                  shape: const ContinuousRectangleBorder(),
+                                      const Color.fromARGB(255, 0, 0, 0),
                                 ),
                                 onPressed: () {
-                                  WindowManager.instance.setFullScreen(false);
                                   WindowManager.instance.minimize();
                                   if (maximized) {
                                     maximized = !maximized;
                                   }
                                 },
-                                icon: const Icon(Icons.minimize_sharp),
+                                icon: const Icon(
+                                    size: 12, Icons.horizontal_rule_sharp),
                               )),
                           const SizedBox(width: 10),
                           Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(
-                                        color: Color.fromARGB(255, 64, 70, 81),
-                                        width: 2),
-                                    right: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    left: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    top: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2)),
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
                               ),
                               child: IconButton(
                                   style: IconButton.styleFrom(
-                                    foregroundColor: const Color.fromARGB(
-                                        255, 255, 255, 255),
-                                    backgroundColor:
-                                        const Color.fromARGB(255, 75, 185, 233),
-                                    shape: const ContinuousRectangleBorder(),
+                                    foregroundColor:
+                                        const Color.fromARGB(255, 0, 0, 0),
                                   ),
                                   onPressed: () {
                                     if (maximized) {
@@ -287,131 +318,75 @@ class _Loader extends State<Loader> {
                                     }
                                     maximized = !maximized;
                                   },
-                                  icon: const Icon(Icons.web_asset_sharp))),
+                                  icon: const Icon(
+                                      size: 12, Icons.web_asset_sharp))),
                           const SizedBox(width: 10),
-                          Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(
-                                        color: Color.fromARGB(255, 64, 70, 81),
-                                        width: 2),
-                                    right: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 253, 165, 171),
-                                        width: 2),
-                                    left: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 253, 165, 171),
-                                        width: 2),
-                                    top: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 253, 165, 171),
-                                        width: 2)),
-                              ),
+                          SizedBox(
+                              width: 20,
+                              height: 20,
+                              // decoration: BoxDecoration(
+                              //     borderRadius:
+                              //         BorderRadius.circular(30),
+                              //     border: Border.all()),
                               child: IconButton(
+                                padding: EdgeInsets.zero,
                                 style: IconButton.styleFrom(
                                   foregroundColor:
-                                      const Color.fromARGB(255, 255, 255, 255),
-                                  backgroundColor:
-                                      const Color.fromARGB(255, 216, 31, 81),
-                                  shape: const ContinuousRectangleBorder(),
+                                      const Color.fromARGB(255, 0, 0, 0),
                                 ),
                                 onPressed: () {
                                   WindowManager.instance.close();
                                 },
-                                icon: const Icon(Icons.clear),
+                                icon: const Icon(
+                                  Icons.clear,
+                                  size: 14,
+                                ),
                               )),
                           const SizedBox(width: 10),
                         ],
                       ),
-                    )),
-              )),
-          leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
-            ),
-          ),
-        ),
-        drawer: Drawer(
-          backgroundColor: Color.fromARGB(255, 255, 255, 255),
-          child: ListView(
-            children: <Widget>[
-              Container(
-                  height: 120,
-                  child: DrawerHeader(
-                    decoration: const BoxDecoration(
-                      color: Color.fromARGB(255, 0, 0, 0),
                     ),
-                    child: Container(
-                        alignment: Alignment.centerLeft,
-                        child: const Text(
-                          'Menu',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 30,
-                          ),
-                        )),
-                  )),
-              ListTile(
-                leading: Icon(Icons.home),
-                title: Text('Home'),
-                onTap: () {
-                  // Handle menu item tap
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Settings'),
-                onTap: () {
-                  // Handle menu item tap
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.exit_to_app),
-                title: Text('Logout'),
-                onTap: () {
-                  // Handle menu item tap
-                },
-              ),
-            ],
+                  ))),
+          leading: Builder(
+            builder: (context) => const Icon(Icons.rocket_launch_sharp),
           ),
         ),
         body: Container(
             decoration: const BoxDecoration(
-              color: Color.fromARGB(255, 233, 237, 246), // Background color
-              border: Border(
-                bottom: BorderSide(
-                    color: Color.fromARGB(255, 64, 70, 81), width: 3),
-                right: BorderSide(
-                    color: Color.fromARGB(255, 205, 209, 218), width: 3),
-                left: BorderSide(
-                    color: Color.fromARGB(255, 205, 209, 218), width: 3),
-              ),
+              color: Color.fromARGB(255, 255, 255, 255), // Background color
             ),
             child: Container(
-                color: Color.fromARGB(255, 0, 4, 12),
+                color: const Color.fromARGB(255, 215, 222, 235),
                 child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                           child: Padding(
-                              padding: EdgeInsets.all(30),
+                              padding: const EdgeInsets.all(25),
                               child: Column(
                                   mainAxisAlignment: MainAxisAlignment.start,
                                   children: [
-                                    SizedBox(height: 40),
+                                    Container(
+                                        child: const Row(
+                                      children: [
+                                        Text(
+                                          "Overview",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 20),
+                                        ),
+                                      ],
+                                    )),
+                                    const SizedBox(height: 20),
                                     Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                            MainAxisAlignment.start,
                                         children: [
                                           Tooltip(
                                               textStyle: const TextStyle(
                                                   fontSize: 15,
                                                   color: Colors.white),
-                                              margin: EdgeInsets.all(10),
+                                              margin: const EdgeInsets.all(10),
                                               preferBelow: false,
                                               message:
                                                   'Create a new study file',
@@ -421,25 +396,24 @@ class _Loader extends State<Loader> {
                                                   right: 20,
                                                   left: 20),
                                               decoration: BoxDecoration(
-                                                  color: const Color.fromARGB(
-                                                      173, 224, 56, 146),
+                                                  color: Color.fromARGB(
+                                                      255, 9, 42, 92),
                                                   border: Border.all(
                                                       color: const Color.fromARGB(
                                                           255, 0, 0, 0),
                                                       width: 2),
-                                                  borderRadius: const BorderRadius.all(
-                                                      Radius.circular(2))),
+                                                  borderRadius:
+                                                      const BorderRadius.all(
+                                                          Radius.circular(2))),
                                               child: Container(
-                                                  height: 50,
-                                                  width: 120,
+                                                  height: 100,
+                                                  width: 100,
                                                   decoration: const BoxDecoration(
                                                       color: Color.fromARGB(
-                                                          255, 224, 56, 146),
-                                                      border: Border(
-                                                          bottom: BorderSide(color: Color.fromARGB(255, 64, 70, 81), width: 3),
-                                                          right: BorderSide(color: Color.fromARGB(255, 251, 182, 219), width: 3),
-                                                          left: BorderSide(color: Color.fromARGB(255, 251, 182, 219), width: 3),
-                                                          top: BorderSide(color: Color.fromARGB(255, 251, 182, 219), width: 3))),
+                                                          255, 9, 42, 92),
+                                                      borderRadius:
+                                                          const BorderRadius.all(
+                                                              Radius.circular(10))),
                                                   child: IconButton(
                                                       color: Colors.white,
                                                       icon: const Icon(Icons.add),
@@ -489,7 +463,7 @@ class _Loader extends State<Loader> {
                                                                                 return null;
                                                                               },
                                                                             ),
-                                                                            SizedBox(height: 13),
+                                                                            const SizedBox(height: 13),
                                                                             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                                                                               TextButton(
                                                                                 onPressed: () async {
@@ -499,6 +473,10 @@ class _Loader extends State<Loader> {
                                                                                     print(constellationName);
 
                                                                                     _createLevelFile(constellationName);
+                                                                                    setState(() {
+                                                                                      fileNameList.add(constellationName);
+                                                                                      newConstellationNameController = TextEditingController(text: _validFileName("Constellation"));
+                                                                                    });
 
                                                                                     await db.insert('loader_data_table', {
                                                                                       'name': constellationName,
@@ -509,7 +487,7 @@ class _Loader extends State<Loader> {
                                                                                       'name': constellationName,
                                                                                       'bullet_list': "[]"
                                                                                     });
-                                                                                    _refreshDirectoryList();
+                                                                                    _refreshLists();
                                                                                     if (context.mounted) {
                                                                                       Navigator.pop(context);
                                                                                       Navigator.push(
@@ -523,7 +501,7 @@ class _Loader extends State<Loader> {
                                                                                 },
                                                                                 child: const Text('CREATE'),
                                                                               ),
-                                                                              SizedBox(width: 5),
+                                                                              const SizedBox(width: 5),
                                                                               TextButton(
                                                                                 child: const Text('CANCEL'),
                                                                                 onPressed: () => Navigator.pop(context),
@@ -547,7 +525,7 @@ class _Loader extends State<Loader> {
                                               textStyle: const TextStyle(
                                                   fontSize: 15,
                                                   color: Colors.white),
-                                              margin: EdgeInsets.all(10),
+                                              margin: const EdgeInsets.all(10),
                                               preferBelow: false,
                                               message:
                                                   'Create a new study file',
@@ -557,25 +535,23 @@ class _Loader extends State<Loader> {
                                                   right: 20,
                                                   left: 20),
                                               decoration: BoxDecoration(
-                                                  color: const Color.fromARGB(
-                                                      173, 224, 56, 146),
+                                                  color: Color.fromARGB(
+                                                      255, 56, 99, 151),
                                                   border: Border.all(
                                                       color: const Color.fromARGB(
                                                           255, 0, 0, 0),
                                                       width: 2),
-                                                  borderRadius: const BorderRadius.all(
-                                                      Radius.circular(2))),
+                                                  borderRadius:
+                                                      const BorderRadius.all(
+                                                          Radius.circular(10))),
                                               child: Container(
-                                                  height: 50,
-                                                  width: 120,
+                                                  height: 100,
+                                                  width: 100,
                                                   decoration: const BoxDecoration(
                                                       color: Color.fromARGB(
-                                                          255, 224, 56, 146),
-                                                      border: Border(
-                                                          bottom: BorderSide(color: Color.fromARGB(255, 64, 70, 81), width: 3),
-                                                          right: BorderSide(color: Color.fromARGB(255, 251, 182, 219), width: 3),
-                                                          left: BorderSide(color: Color.fromARGB(255, 251, 182, 219), width: 3),
-                                                          top: BorderSide(color: Color.fromARGB(255, 251, 182, 219), width: 3))),
+                                                          255, 56, 99, 151),
+                                                      borderRadius: const BorderRadius.all(
+                                                          Radius.circular(10))),
                                                   child: IconButton(
                                                       color: Colors.white,
                                                       icon: const Icon(Icons.upload_file_sharp),
@@ -604,6 +580,9 @@ class _Loader extends State<Loader> {
                                                         }
                                                         String defaultFileName =
                                                             './samples/test.txt';
+                                                        String
+                                                            fileNameMaintain =
+                                                            defaultFileName;
                                                         for (int i = 0;
                                                             i <
                                                                 fileUploadResult
@@ -616,31 +595,50 @@ class _Loader extends State<Loader> {
                                                                       i] ??
                                                                   "./samples/test.txt";
                                                           String fileName =
-                                                              fileUploadResult
-                                                                          .names[
-                                                                      i] ??
-                                                                  "test.txt";
+                                                              (fileUploadResult
+                                                                              .names[
+                                                                          i] ??
+                                                                      "test.txt")
+                                                                  .split(
+                                                                      ".")[0];
                                                           String dateTime =
                                                               DateTime.now()
                                                                   .toString()
                                                                   .split(
                                                                       ".")[0];
+
+                                                          String validFileName =
+                                                              _validFileName(
+                                                                  fileName);
+                                                          setState(() {
+                                                            fileNameList.add(
+                                                                validFileName);
+                                                            newConstellationNameController =
+                                                                TextEditingController(
+                                                                    text: _validFileName(
+                                                                        "Constellation"));
+                                                          });
+                                                          if (i == 0) {
+                                                            fileNameMaintain =
+                                                                validFileName;
+                                                          }
                                                           int recordId =
                                                               await db.insert(
                                                                   'loader_data_table',
                                                                   {
                                                                 'name':
-                                                                    fileName,
+                                                                    validFileName,
                                                                 'file_path':
                                                                     filePath,
                                                                 'access_date':
-                                                                    dateTime
+                                                                    dateTime,
+                                                                'external': 1
                                                               });
                                                           await db.insert(
                                                               'constellation_table',
                                                               {
                                                                 'name':
-                                                                    fileName,
+                                                                    validFileName,
                                                                 'bullet_list':
                                                                     "[]"
                                                               });
@@ -653,6 +651,8 @@ class _Loader extends State<Loader> {
                                                           directoryFiles =
                                                               queryResultsList;
                                                         });
+                                                        print(
+                                                            "file upload result: $fileUploadResult");
                                                         if (context.mounted) {
                                                           Navigator.push(
                                                             context,
@@ -662,8 +662,7 @@ class _Loader extends State<Loader> {
                                                                             0] ??
                                                                         defaultFileName,
                                                                     fileName:
-                                                                        fileUploadResult.names[0] ??
-                                                                            "")
+                                                                        fileNameMaintain)
 
                                                                 // Editor(
                                                                 //     path: fileUploadResult.paths[
@@ -679,70 +678,154 @@ class _Loader extends State<Loader> {
                                                           );
                                                         }
                                                       }))),
-                                          TextButton(
-                                              onPressed: () {
-                                                readJson();
-                                              },
-                                              child: Text("tesser1"))
-                                        ]),
-                                    SizedBox(height: 20),
-                                    const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Padding(
-                                            padding: EdgeInsets.only(left: 62),
-                                            child: Text("Constellation",
-                                                style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
+                                          // TextButton(
+                                          //     onPressed: () {
+                                          //       readJson();
+                                          //     },
+                                          //     child: Text("tesser1"))
+                                          const SizedBox(
+                                            width: 20,
                                           ),
-                                          Padding(
-                                            padding:
-                                                EdgeInsets.only(right: 110),
-                                            child: Text("Date",
-                                                style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                          ),
+                                          Container(
+                                            height: 100,
+                                            decoration: BoxDecoration(
+                                                color: Color.fromARGB(
+                                                    225, 204, 41, 54),
+                                                borderRadius:
+                                                    BorderRadius.circular(10)),
+                                            child: TextButton.icon(
+                                              onPressed: () => {},
+                                              label: const Text(
+                                                  style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 20),
+                                                  "Continue from last set"),
+                                              icon: const Icon(
+                                                Icons.arrow_forward,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          )
                                         ]),
-                                    SizedBox(height: 10),
-                                    Container(
-                                        decoration: const BoxDecoration(
-                                            border: Border.symmetric(
-                                                horizontal: BorderSide(
-                                                    color: Colors.white,
-                                                    width: 1))),
-                                        child: ListView.separated(
-                                            separatorBuilder: (context,
-                                                    index) =>
-                                                Container(
-                                                  color: const Color.fromARGB(
-                                                      255, 255, 255, 255),
-                                                  height: 1,
-                                                ),
-                                            scrollDirection: Axis.vertical,
-                                            shrinkWrap: true,
-                                            controller: scroller,
-                                            itemCount: directoryFiles.length,
-                                            itemBuilder: (BuildContext context,
-                                                int index) {
-                                              return ViewLine(
-                                                  updateDelete: removeEntry,
-                                                  lineNumber: index,
-                                                  name: directoryFiles[index]
-                                                      ["name"],
-                                                  pathName:
-                                                      directoryFiles[index]
-                                                          ["file_path"],
-                                                  idNumber:
-                                                      directoryFiles[index]
-                                                          ['id'],
-                                                  date: directoryFiles[index]
-                                                      ['access_date']);
-                                            }))
+                                    const SizedBox(height: 20),
+                                    Expanded(
+                                        child: Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: const BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius: BorderRadius.all(
+                                                    Radius.circular(10))),
+                                            child: Column(children: [
+                                              Container(
+                                                color: const Color.fromARGB(
+                                                    255, 255, 255, 255),
+                                                height: 50,
+                                                child: Row(children: [
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                            left: 62),
+                                                    child: Text("Constellation",
+                                                        style: TextStyle(
+                                                            color:
+                                                                secondaryColor,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                                  ),
+                                                  Spacer(),
+                                                  checkBoxActiveCount > 0
+                                                      ? Container(
+                                                          margin:
+                                                              EdgeInsets.only(
+                                                                  right: 115),
+                                                          child: IconButton(
+                                                              style: const ButtonStyle(
+                                                                  backgroundColor:
+                                                                      WidgetStatePropertyAll(
+                                                                          Colors
+                                                                              .transparent)),
+                                                              padding:
+                                                                  EdgeInsets
+                                                                      .zero,
+                                                              onPressed: () {
+                                                                removeEntries();
+                                                              },
+                                                              icon: const Icon(
+                                                                  Icons
+                                                                      .delete_forever_sharp,
+                                                                  color: Colors
+                                                                      .black)))
+                                                      : SizedBox(
+                                                          width: 20,
+                                                          height: 20),
+                                                  Container(
+                                                    margin: EdgeInsets.only(
+                                                        right: 30),
+                                                    child: Text("Date",
+                                                        style: TextStyle(
+                                                            color:
+                                                                secondaryColor,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                                  ),
+                                                ]),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Expanded(
+                                                  child: Container(
+                                                      decoration: const BoxDecoration(
+                                                          borderRadius:
+                                                              BorderRadius.all(
+                                                                  Radius
+                                                                      .circular(
+                                                                          20)),
+                                                          color: Colors.white,
+                                                          border: Border.symmetric(
+                                                              horizontal: BorderSide(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  width: 4))),
+                                                      child: ListView.builder(
+                                                          scrollDirection:
+                                                              Axis.vertical,
+                                                          shrinkWrap: true,
+                                                          controller: scroller,
+                                                          itemCount:
+                                                              directoryFiles
+                                                                  .length,
+                                                          itemBuilder:
+                                                              (BuildContext
+                                                                      context,
+                                                                  int index) {
+                                                            return ViewLine(
+                                                                updateCheckBox:
+                                                                    updateCheckBoxActive,
+                                                                updateDelete:
+                                                                    removeEntry,
+                                                                lineNumber:
+                                                                    index,
+                                                                name: directoryFiles[
+                                                                        index]
+                                                                    ["name"],
+                                                                pathName: directoryFiles[
+                                                                        index][
+                                                                    "file_path"],
+                                                                idNumber:
+                                                                    directoryFiles[
+                                                                            index]
+                                                                        ['id'],
+                                                                date: directoryFiles[
+                                                                        index][
+                                                                    'access_date'],
+                                                                external: directoryFiles[
+                                                                            index]
+                                                                        [
+                                                                        "external"] ==
+                                                                    1);
+                                                          })))
+                                            ])))
                                   ]))),
                     ]))));
   }
@@ -756,13 +839,17 @@ class ViewLine extends StatefulWidget {
       this.idNumber = 0,
       required this.updateDelete,
       required this.date,
+      required this.external,
+      required this.updateCheckBox,
       super.key});
   final int lineNumber;
   final String name;
   final String pathName;
   final String date;
   final int idNumber;
+  final bool external;
   final Function(int index) updateDelete;
+  final Function(int index, bool check) updateCheckBox;
 
   @override
   State<ViewLine> createState() => _ViewLine();
@@ -813,23 +900,28 @@ class _ViewLine extends State<ViewLine> {
       // if (states.any(interactiveStates.contains)) {
       //   return Color.fromARGB(94, 255, 255, 255);
       // }
-      return const Color.fromARGB(255, 5, 14, 32);
+      return Color.fromARGB(255, 255, 255, 255);
     }
 
     return Container(
-        height: 70,
-        color: isChecked ?? false
-            ? const Color.fromARGB(255, 5, 14, 32)
-            : Colors.transparent,
+        height: 65,
+        margin: EdgeInsets.only(right: 15),
+        decoration: BoxDecoration(
+          color: isChecked ?? false
+              ? Color.fromARGB(255, 196, 209, 235)
+              : Colors.transparent,
+        ),
         child: Row(children: [
           Checkbox(
-            side: const BorderSide(color: Colors.white, width: 1.3),
-            shape: ContinuousRectangleBorder(),
+            side: const BorderSide(color: Colors.black, width: 1.3),
+            shape: const ContinuousRectangleBorder(),
             fillColor: WidgetStateColor.resolveWith(getColor),
-            activeColor: Colors.white,
+            checkColor: Colors.black,
+            activeColor: Colors.black,
             value: isChecked,
             onChanged: (bool? value) {
               print(name);
+              widget.updateCheckBox(lineNumber, value ?? false);
               setState(() {
                 isChecked = value;
               });
@@ -837,14 +929,14 @@ class _ViewLine extends State<ViewLine> {
           ),
           Expanded(
               child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 30),
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
                   child: Container(
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
                         child: Text(
-                            style: TextStyle(color: Colors.white),
+                            style: const TextStyle(color: Colors.black),
                             textAlign: TextAlign.left,
-                            name.split(".")[0],
+                            name,
                             maxLines: 1,
                             overflow: TextOverflow.fade),
                         onTap: () {
@@ -868,19 +960,25 @@ class _ViewLine extends State<ViewLine> {
               ? Container(
                   child: Row(children: [
                   IconButton(
-                      color: Colors.white,
-                      onPressed: () async {
-                        await widget.updateDelete(idNumber);
-                        await deleteFile(File(pathName));
-                      },
-                      icon: const Icon(Icons.delete_outline_sharp))
+                      color: Colors.black,
+                      onPressed: () async {},
+                      icon: const Icon(Icons.edit)),
+                  // IconButton(
+                  //     color: Colors.black,
+                  //     onPressed: () async {
+                  //       await widget.updateDelete(idNumber);
+                  //       if (!widget.external) {
+                  //         await deleteFile(File(pathName));
+                  //       }
+                  //     },
+                  //     icon: const Icon(Icons.delete_outline_sharp))
                 ]))
-              : SizedBox.shrink(),
+              : const SizedBox.shrink(),
           Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Text(
                 date,
-                style: TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.black),
               )),
         ]));
   }

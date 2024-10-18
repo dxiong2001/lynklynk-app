@@ -15,10 +15,10 @@ Size getTextExtents(String text, TextStyle style) {
   return textPainter.size;
 }
 
-Color foreground = Color.fromARGB(255, 255, 255, 255);
-Color background = Color.fromARGB(255, 255, 255, 255);
-Color textColor = Color.fromARGB(255, 0, 0, 0);
-Color comment = Color.fromARGB(255, 0, 0, 0);
+Color foreground = const Color.fromARGB(255, 255, 255, 255);
+Color background = const Color.fromARGB(255, 255, 255, 255);
+Color textColor = const Color.fromARGB(255, 0, 0, 0);
+Color comment = const Color.fromARGB(255, 0, 0, 0);
 Color selection = const Color(0xff44475a);
 Color function = const Color(0xff50fa7b);
 Color keyword = const Color(0xffff79c6);

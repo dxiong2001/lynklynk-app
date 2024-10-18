@@ -17,7 +17,7 @@ class BulletState extends State<Bullet> {
   bool focused = false;
   late int bulletLevel;
   bool editable = false;
-  Color bulletColor = Color.fromARGB(255, 255, 255, 255);
+  Color bulletColor = const Color.fromARGB(255, 255, 255, 255);
   Color bulletFontColor = Colors.black;
 
   @override
@@ -75,7 +75,7 @@ class BulletState extends State<Bullet> {
             bottom: 10),
         child: Row(children: [
           Container(width: 6, height: 6, color: Colors.black),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           GestureDetector(
               onTap: () {
                 print("single press");
@@ -122,7 +122,7 @@ class BulletState extends State<Bullet> {
                               controller: bulletTextController,
                             )
                           : Container(
-                              padding: EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(8),
                               child: Text(
                                   style: const TextStyle(fontSize: 16),
                                   bulletTextController.text)))))

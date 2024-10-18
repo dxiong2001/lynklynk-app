@@ -59,7 +59,7 @@ class _Constellation extends State<Constellation> {
         return;
       }
     }
-    Stack.Stack s = new Stack.Stack();
+    Stack.Stack s = Stack.Stack();
     for (int i = 0; i < widget.bulletList.length; i++) {
       // print(s);
       String line = widget.textList[i];
@@ -94,11 +94,11 @@ class _Constellation extends State<Constellation> {
   Widget auxiliary(String term, int index, String ledger, Map record) {
     bool showSubNodes = false;
     if (index > 5) {
-      return SizedBox();
+      return const SizedBox();
     }
 
     if (record[term] != null) {
-      return SizedBox();
+      return const SizedBox();
     }
 
     if (auxiliaryTable[ledger + term] == null) {
@@ -108,7 +108,7 @@ class _Constellation extends State<Constellation> {
     record[term] = true;
     print(record);
     return term.isEmpty
-        ? SizedBox()
+        ? const SizedBox()
         : Container(
             child: Column(children: [
             Container(
@@ -117,15 +117,16 @@ class _Constellation extends State<Constellation> {
                   borderRadius: const BorderRadius.all(Radius.circular(6)),
                   border: Border.all(color: Colors.black, width: 1),
                 ),
-                padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                 margin: EdgeInsets.only(top: 5, bottom: 5, left: index * 15),
                 child: Row(children: [
                   ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: 36),
+                      constraints: const BoxConstraints(minHeight: 36),
                       child: Container(
                           alignment: Alignment.centerLeft,
                           width: 570 - index * 15,
-                          padding: EdgeInsets.only(right: 18),
+                          padding: const EdgeInsets.only(right: 18),
                           decoration: const BoxDecoration(
                               border: Border(
                                   right: BorderSide(
@@ -172,103 +173,69 @@ class _Constellation extends State<Constellation> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          shape: const Border(
-              bottom:
-                  BorderSide(color: Color.fromARGB(255, 64, 70, 81), width: 3),
-              right: BorderSide(
-                  color: Color.fromARGB(255, 205, 209, 218), width: 3),
-              left: BorderSide(
-                  color: Color.fromARGB(255, 205, 209, 218), width: 3),
-              top: BorderSide(
-                  color: Color.fromARGB(255, 205, 209, 218), width: 3)),
+          scrolledUnderElevation: 0,
+          toolbarHeight: 40,
           titleSpacing: 0,
           primary: false,
-          backgroundColor: const Color.fromARGB(255, 75, 185, 233),
-          title: GestureDetector(
-              onHorizontalDragStart: (e) {
-                WindowManager.instance.startDragging();
-              },
-              onVerticalDragStart: (e) {
-                WindowManager.instance.startDragging();
-              },
-              child: Container(
-                color: const Color.fromARGB(255, 233, 237, 246),
-                // Color.fromARGB(255, 75, 185, 233),
 
-                child: Container(
-                    color: const Color.fromARGB(255, 50, 73, 126),
+          shape: const Border(
+              bottom: BorderSide(
+                  color: Color.fromARGB(255, 64, 70, 81), width: 0.5)),
+          backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+          // backgroundColor: const Color.fromARGB(255, 75, 185, 233),
+          title: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              child: GestureDetector(
+                  onHorizontalDragStart: (e) {
+                    WindowManager.instance.startDragging();
+                  },
+                  onVerticalDragStart: (e) {
+                    WindowManager.instance.startDragging();
+                  },
+                  child: Container(
+                    color: const Color.fromARGB(255, 233, 237, 246),
+                    // Color.fromARGB(255, 75, 185, 233),
+
                     child: Container(
-                      color: const Color.fromARGB(255, 75, 185, 233),
+                      color: const Color.fromARGB(255, 255, 255, 255),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           const SizedBox(width: 10),
                           Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(
-                                        color: Color.fromARGB(255, 64, 70, 81),
-                                        width: 2),
-                                    right: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    left: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    top: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2)),
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
                               ),
                               child: IconButton(
+                                padding: EdgeInsets.zero,
                                 style: IconButton.styleFrom(
                                   foregroundColor:
-                                      const Color.fromARGB(255, 255, 255, 255),
-                                  backgroundColor:
-                                      const Color.fromARGB(255, 75, 185, 233),
-                                  shape: const ContinuousRectangleBorder(),
+                                      const Color.fromARGB(255, 0, 0, 0),
                                 ),
                                 onPressed: () {
-                                  WindowManager.instance.setFullScreen(false);
                                   WindowManager.instance.minimize();
                                   if (maximized) {
                                     maximized = !maximized;
                                   }
                                 },
-                                icon: const Icon(Icons.minimize_sharp),
+                                icon: const Icon(
+                                    size: 12, Icons.horizontal_rule_sharp),
                               )),
                           const SizedBox(width: 10),
                           Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(
-                                        color: Color.fromARGB(255, 64, 70, 81),
-                                        width: 2),
-                                    right: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    left: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2),
-                                    top: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 181, 227, 247),
-                                        width: 2)),
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
                               ),
                               child: IconButton(
                                   style: IconButton.styleFrom(
-                                    foregroundColor: const Color.fromARGB(
-                                        255, 255, 255, 255),
-                                    backgroundColor:
-                                        const Color.fromARGB(255, 75, 185, 233),
-                                    shape: const ContinuousRectangleBorder(),
+                                    foregroundColor:
+                                        const Color.fromARGB(255, 0, 0, 0),
                                   ),
                                   onPressed: () {
-                                    print("close");
                                     if (maximized) {
                                       WindowManager.instance
                                           .setFullScreen(false);
@@ -278,60 +245,44 @@ class _Constellation extends State<Constellation> {
                                     }
                                     maximized = !maximized;
                                   },
-                                  icon: const Icon(Icons.web_asset_sharp))),
+                                  icon: const Icon(
+                                      size: 12, Icons.web_asset_sharp))),
                           const SizedBox(width: 10),
-                          Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(
-                                        color: Color.fromARGB(255, 64, 70, 81),
-                                        width: 2),
-                                    right: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 253, 165, 171),
-                                        width: 2),
-                                    left: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 253, 165, 171),
-                                        width: 2),
-                                    top: BorderSide(
-                                        color:
-                                            Color.fromARGB(255, 253, 165, 171),
-                                        width: 2)),
-                              ),
+                          SizedBox(
+                              width: 20,
+                              height: 20,
+                              // decoration: BoxDecoration(
+                              //     borderRadius:
+                              //         BorderRadius.circular(30),
+                              //     border: Border.all()),
                               child: IconButton(
+                                padding: EdgeInsets.zero,
                                 style: IconButton.styleFrom(
                                   foregroundColor:
-                                      const Color.fromARGB(255, 255, 255, 255),
-                                  backgroundColor:
-                                      const Color.fromARGB(255, 216, 31, 81),
-                                  shape: const ContinuousRectangleBorder(),
+                                      const Color.fromARGB(255, 0, 0, 0),
                                 ),
                                 onPressed: () {
-                                  print("close");
                                   WindowManager.instance.close();
                                 },
-                                icon: const Icon(Icons.clear),
+                                icon: const Icon(
+                                  Icons.clear,
+                                  size: 14,
+                                ),
                               )),
                           const SizedBox(width: 10),
                         ],
                       ),
-                    )),
-              )),
+                    ),
+                  ))),
           leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
-            ),
+            builder: (context) => const Icon(Icons.rocket_launch_sharp),
           ),
         ),
         drawer: Drawer(
-          backgroundColor: Color.fromARGB(255, 255, 255, 255),
+          backgroundColor: const Color.fromARGB(255, 255, 255, 255),
           child: ListView(
             children: <Widget>[
-              Container(
+              SizedBox(
                   height: 120,
                   child: DrawerHeader(
                     decoration: const BoxDecoration(
@@ -348,22 +299,22 @@ class _Constellation extends State<Constellation> {
                         )),
                   )),
               ListTile(
-                leading: Icon(Icons.home),
-                title: Text('Home'),
+                leading: const Icon(Icons.home),
+                title: const Text('Home'),
                 onTap: () {
                   // Handle menu item tap
                 },
               ),
               ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Settings'),
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
                 onTap: () {
                   // Handle menu item tap
                 },
               ),
               ListTile(
-                leading: Icon(Icons.exit_to_app),
-                title: Text('Logout'),
+                leading: const Icon(Icons.exit_to_app),
+                title: const Text('Logout'),
                 onTap: () {
                   // Handle menu item tap
                 },
@@ -426,23 +377,23 @@ class _Constellation extends State<Constellation> {
                           height: 300,
                           width: 650,
                           decoration: BoxDecoration(
-                            color: Color.fromARGB(255, 255, 255, 255),
+                            color: const Color.fromARGB(255, 255, 255, 255),
                             borderRadius:
-                                BorderRadius.all(Radius.circular(8.0)),
+                                const BorderRadius.all(Radius.circular(8.0)),
                             border: Border.all(color: Colors.black, width: 1),
                           ),
                           child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: currentTermChildren
-                                  .map((item) => new Text(item))
+                                  .map((item) => Text(item))
                                   .toList()),
                         ),
                       ),
                     ),
-                    Container(
+                    SizedBox(
                         width: 650,
                         child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 15),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
                             child: ExpansionTile(
                               shape: const Border(),
                               title: const Text('Auxiliaries'),

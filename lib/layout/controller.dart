@@ -5,7 +5,7 @@ import 'package:lynklynk/view.dart';
 class Controller extends StatelessWidget {
   final DocumentProvider doc;
   final Function update;
-  Controller({super.key, required this.doc, required this.update});
+  const Controller({super.key, required this.doc, required this.update});
 
   void _onEnterSpecial(PointerEvent event, DocumentProvider doc) {
     print("entered special area");
@@ -71,7 +71,7 @@ class Controller extends StatelessWidget {
                           color: Color.fromARGB(255, 181, 227, 247), width: 2)),
                 ),
                 child: IconButton(
-                    padding: EdgeInsets.all(0.0),
+                    padding: const EdgeInsets.all(0.0),
                     style: IconButton.styleFrom(
                       foregroundColor: const Color.fromARGB(255, 255, 255, 255),
                       backgroundColor: const Color.fromARGB(255, 75, 185, 233),
@@ -128,7 +128,7 @@ class Controller extends StatelessWidget {
                           color: Color.fromARGB(255, 181, 227, 247), width: 2)),
                 ),
                 child: IconButton(
-                    padding: EdgeInsets.all(0.0),
+                    padding: const EdgeInsets.all(0.0),
                     style: IconButton.styleFrom(
                       foregroundColor: const Color.fromARGB(255, 255, 255, 255),
                       backgroundColor: const Color.fromARGB(255, 75, 185, 233),
@@ -160,7 +160,7 @@ class Controller extends StatelessWidget {
                           color: Color.fromARGB(255, 181, 227, 247), width: 2)),
                 ),
                 child: IconButton(
-                    padding: EdgeInsets.all(0.0),
+                    padding: const EdgeInsets.all(0.0),
                     style: IconButton.styleFrom(
                       foregroundColor: const Color.fromARGB(255, 255, 255, 255),
                       backgroundColor: const Color.fromARGB(255, 75, 185, 233),
