@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lynklynk/layout/constellation.dart';
 import 'package:lynklynk/view.dart';
 
 class Controller extends StatelessWidget {

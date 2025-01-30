@@ -5,7 +5,7 @@ import 'dart:io';
 import 'view.dart' as view;
 import 'input.dart';
 import 'highlighter.dart';
-import 'package:lynklynk/loader.dart';
+import 'package:lynklynk/dashboard.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 

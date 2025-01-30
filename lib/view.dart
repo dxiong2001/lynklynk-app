@@ -6,7 +6,6 @@ import 'package:lynklynk/layout/document.dart';
 import 'highlighter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:convert';
-import 'package:lynklynk/bullet.dart';
 
 class DocumentProvider extends ChangeNotifier {
   Document doc = Document();

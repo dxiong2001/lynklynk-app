@@ -1,13 +1,5 @@
-import 'dart:ffi';
 import 'dart:math';
-
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/widgets.dart';
-import 'package:lynklynk/bullet.dart';
-import 'package:lynklynk/utils/bullet.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
@@ -15,15 +7,42 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:lynklynk/utils/suggestions.dart' as suggestions;
 import 'package:lynklynk/layout/constellation.dart';
-import 'package:searchfield/searchfield.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:lynklynk/utils/bullet.dart' as Bullet;
+import 'package:path/path.dart' as Path;
+
+class Node {
+  final int id;
+  String nodeTerm;
+  List<String> auxiliaries;
+  String color;
+  final String createDate;
+  String updateDate;
+
+  Node(
+      {required this.id,
+      required this.nodeTerm,
+      required this.auxiliaries,
+      required this.color,
+      required this.createDate,
+      required this.updateDate});
+  Map<String, Object?> toMap() {
+    return {
+      'id': id,
+      'nodeTerm': nodeTerm,
+      'auxiliaries': auxiliaries.toString(),
+      'color': color,
+      'createDate': createDate,
+      'updateDate': updateDate,
+    };
+  }
+}
 
 class Test extends StatefulWidget {
-  const Test({super.key, required this.path, required this.fileName});
+  const Test({super.key, required this.constellationName, required this.id});
 
-  final String path;
-  final String fileName;
+  final String constellationName;
+  final int id;
 
   @override
   State<Test> createState() => _Test();
@@ -81,6 +100,10 @@ class _Test extends State<Test> {
   List<String> suggestionList = [];
   String searchbarText = "";
   bool inSuggestionArea = false;
+  int selectBulletRangeMin = -1;
+
+  late String constellationName;
+  late int constellationID;
 
   //page number
   int pageIndex = 1;
@@ -91,78 +114,139 @@ class _Test extends State<Test> {
   //number of bullets on a page
   int? pageBulletNumber;
 
+  //list of all nodes in the constellation
+  List<Node> nodeList = [];
+
   bool showPageNavigateLeftButton = false;
   bool showPageNavigateRightButton = false;
 
-  var db;
+  Color backgroundColor = const Color.fromRGBO(252, 231, 200, 1);
+  Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
+  Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
+  Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
+
+  var database;
 
   double suggestionHeight = 100;
   @override
   void initState() {
+    constellationID = widget.id;
+    constellationName = widget.constellationName;
     print("---------------------");
     ServicesBinding.instance.keyboard.addHandler(_onKey);
-    openFile(widget.path);
+    _asyncLoadDB();
 
     super.initState();
   }
 
-  Future<bool> openFile(String path) async {
-    Database retrievedDB = db = await openDatabase('constellation_db.db');
-    String fileName = widget.fileName;
-    List<Map> queryResultsList =
-        await db.rawQuery("SELECT * FROM constellation_table");
-    print(queryResultsList);
-    print(widget.fileName);
-    Map queryResult = queryResultsList
-        .where((item) => item["name"] == widget.fileName)
-        .toList()[0];
-    print(queryResult.length);
+  _asyncLoadDB() async {
+    database = openDatabase(
+      // Set the path to the database. Note: Using the `join` function from the
+      // `path` package is best practice to ensure the path is correctly
+      // constructed for each platform.
+      Path.join(await getDatabasesPath(), 'lynklynk_file_database.db'),
+      // When the database is first created, create a table to store files.
+      onCreate: (db, version) {
+        // Run the CREATE TABLE statement on the database.
+        return db.execute(
+          'CREATE TABLE "${constellationName}_${constellationID.toString()}"(id INTEGER PRIMARY KEY, nodeTerm TEXT, auxiliaries TEXT, color TEXT, createDate TEXT, updateDate TEXT)',
+        );
+      },
+      onUpgrade: _onUpgrade,
+      // Set the version. This executes the onCreate function and provides a
+      // path to perform database upgrades and downgrades.
+      version: 1,
+    );
 
-    var queryLevelList = jsonDecode(queryResult["bullet_list"]);
-
-    File f = File(path);
-    String fileString = await f.readAsString();
-    // fileString = fileString.replaceAll(r'\n', '\n');
-    const splitter = LineSplitter();
-    final linesList = splitter.convert(fileString);
-    if (queryLevelList.isEmpty) {
-      queryLevelList = List.generate(linesList.length, (e) => 0);
+    try {
+      List<Node> queryResultsList = await getNodeList();
+      print(queryResultsList);
+      setState(() {
+        nodeList = queryResultsList;
+      });
+    } catch (e) {
+      print(e);
     }
-    for (var i = 0; i < linesList.length; i++) {
-      setState(() => suggestion.addTerm(linesList[i]));
-
-      bulletList.add(Bullet.Bullet(queryLevelList[i], UniqueKey(), FocusNode(),
-          TextEditingController(text: linesList[i])));
-    }
-    if (bulletList.length > pageMaxBulletNumber) {
-      showPageNavigateRightButton = true;
-    }
-
-    pageBulletNumber = calculatePageBulletNumber();
-    setState(() => {});
-
-    return true;
   }
 
-  Future<bool> saveFile(String path) async {
-    File f = File(path);
-    String content = '';
-    int i;
-    await db.rawUpdate(
-        'UPDATE constellation_table SET bullet_list = ? WHERE name = ?',
-        [bulletList.map((e) => e.level).toList().toString(), widget.fileName]);
-    for (i = 0; i < bulletList.length; i++) {
-      String controllerText = bulletList[i].controller.text;
-      if (controllerText.isEmpty) continue;
-      if (i < bulletList.length - 1) {
-        content += '$controllerText\n';
-      } else {
-        content += controllerText;
-      }
-    }
-    f.writeAsString(content);
+  Future<List<Node>> getNodeList() async {
+    // Get a reference to the database.
+    final db = await database;
+    // Query the table for all the files.
+    final List<Map<String, Object?>> fileMaps =
+        await db.query('"${constellationName}_$constellationID"');
+    // Convert the list of each file's fields into a list of `file` objects.
+    return [
+      for (final {
+            'id': id as int,
+            'nodeTerm': nodeTerm as String,
+            'auxiliaries': auxiliaries as String,
+            'color': color as String,
+            'createDate': createDate as String,
+            'updateDate': updateDate as String,
+          } in fileMaps)
+        Node(
+          id: id,
+          nodeTerm: nodeTerm,
+          auxiliaries: json.decode(auxiliaries),
+          color: color,
+          createDate: createDate,
+          updateDate: updateDate,
+        )
+    ];
+  }
 
-    return true;
+  Future<void> updateNode(Node file) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Update the given Dfile.
+    await db.update(
+      constellationName,
+      file.toMap(),
+      // Ensure that the file has a matching id.
+      where: 'id = ?',
+      // Pass the file's id as a whereArg to prevent SQL injection.
+      whereArgs: [file.id],
+    );
+
+    updateFiles();
+  }
+
+  Future<void> deleteNode(int id, String fileName) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Remove the file from the database.
+    await db.delete(
+      constellationName,
+      // Use a `where` clause to delete a specific file.
+      where: 'id = ?',
+      // Pass the file's id as a whereArg to prevent SQL injection.
+      whereArgs: [id],
+    );
+
+    await db.execute("DROP TABLE IF EXISTS $fileName");
+    updateFiles();
+  }
+
+  void _onUpgrade(Database db, int oldVersion, int newVersion) {
+    if (oldVersion < 2) {
+      db.execute(
+          "ALTER TABLE files ADD COLUMN starred INTEGER NOT NULL DEFAULT (0);");
+    }
+  }
+
+  Future<void> updateFiles() async {
+    try {
+      List<Node> queryResultsList = await getNodeList();
+      print(queryResultsList);
+      setState(() {
+        nodeList = queryResultsList;
+      });
+    } catch (e) {
+      print(e);
+    }
   }
 
   double getHeight(int h) {
@@ -266,6 +350,23 @@ class _Test extends State<Test> {
     return false;
   }
 
+  bool inSelectBulletRange(int i) {
+    int rangeMin = selectBulletRangeMin;
+    int rangeMax = focused;
+    if (focused < selectBulletRangeMin) {
+      rangeMin = rangeMax;
+      rangeMax = selectBulletRangeMin;
+    }
+
+    if (selectBulletRangeMin < 0) {
+      return false;
+    }
+    if (rangeMin <= i && i <= rangeMax) {
+      return true;
+    }
+    return false;
+  }
+
   void decreasePageNumber() {
     if (pageIndex > 1) {
       setState(() {
@@ -301,6 +402,7 @@ class _Test extends State<Test> {
     if (bulletList.length < end) {
       return bulletList.length - pageMaxBulletNumber * (pageIndex - 1);
     }
+
     return pageMaxBulletNumber;
   }
 
@@ -487,7 +589,7 @@ class _Test extends State<Test> {
             child: Row(children: [
               Container(
                   padding: const EdgeInsets.all(15),
-                  child: focused == index
+                  child: focused == index || inSelectBulletRange(index)
                       ? const Icon(size: 10, Icons.circle)
                       : const Icon(size: 10, Icons.circle_outlined)),
               Container(
@@ -790,7 +892,7 @@ class _Test extends State<Test> {
                                       shape: WidgetStatePropertyAll(
                                           ContinuousRectangleBorder())),
                                   onPressed: () {
-                                    saveFile(widget.path);
+                                    // saveFile(widget.path);
                                   },
                                   icon:
                                       const Icon(size: 20, Icons.save_sharp))),
@@ -810,109 +912,110 @@ class _Test extends State<Test> {
                                       shape: WidgetStatePropertyAll(
                                           ContinuousRectangleBorder())),
                                   onPressed: () {
-                                    saveFile(widget.path);
+                                    // saveFile(widget.path);
                                   },
                                   icon: const Icon(
                                       size: 20, Icons.settings_sharp))),
                           const Spacer(),
                           Container(
-                              width: min(
-                                  MediaQuery.of(context).size.width - 200, 700),
-                              height: 40,
-                              margin: const EdgeInsets.all(10),
-                              child: SearchField<String>(
-                                  onSearchTextChanged: (String e) {
-                                    if (e.isEmpty) return [];
-                                    return suggestion
-                                        .getSuggestion(e)
-                                        .map((e) => SearchFieldListItem<String>(
-                                            e,
-                                            item: e,
-                                            child: Container(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        minHeight: 30),
-                                                child: Row(children: [
-                                                  Expanded(
-                                                      child: Text(e,
-                                                          softWrap: false,
-                                                          maxLines: 2,
-                                                          overflow: TextOverflow
-                                                              .ellipsis))
-                                                ]))))
-                                        .toList()
-                                        .getRange(
-                                            0,
-                                            suggestion.getSuggestion(e).length <
-                                                    6
-                                                ? suggestion
-                                                    .getSuggestion(e)
-                                                    .length
-                                                : 6)
-                                        .toList();
-                                  },
-                                  dynamicHeight: true,
-                                  searchInputDecoration: SearchInputDecoration(
-                                      cursorWidth: 1,
-                                      filled: true,
-                                      fillColor: const Color.fromARGB(
-                                          49, 165, 165, 165),
-                                      focusedBorder: OutlineInputBorder(
-                                          borderSide: const BorderSide(
-                                            color: Color.fromARGB(
-                                                255, 8, 128, 183),
-                                            width: 1,
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(20)),
-                                      border: OutlineInputBorder(
-                                          borderSide: const BorderSide(
-                                            width: 0.5,
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(20)),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              vertical: 0, horizontal: 18),
-                                      searchStyle: const TextStyle(
-                                          letterSpacing: 0.4, fontSize: 15)),
-                                  onSuggestionTap: (SearchFieldListItem term) {
-                                    List terms = bulletList
-                                        .map((e) => e.controller.text)
-                                        .toList();
-                                    for (int i = 0; i < terms.length; i++) {
-                                      if (term.item == terms[i] &&
-                                          bulletList[i].level > 0) {
-                                        makeMain(i, bulletList[i].level);
-                                        break;
-                                      }
-                                    }
-                                  },
-                                  suggestions: suggestion
-                                      .getTerms()
-                                      .map((e) => SearchFieldListItem<String>(e,
-                                          item: e,
-                                          child: Container(
-                                              constraints: const BoxConstraints(
-                                                  minHeight: 30),
-                                              child: Row(children: [
-                                                Expanded(
-                                                    child: Text(e,
-                                                        softWrap: false,
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis))
-                                              ]))))
-                                      .toList())),
+                            width: min(
+                                MediaQuery.of(context).size.width - 200, 700),
+                            height: 40,
+                            margin: const EdgeInsets.all(10),
+                            // child: SearchField<String>(
+                            //     onSearchTextChanged: (String e) {
+                            //       if (e.isEmpty) return [];
+                            //       return suggestion
+                            //           .getSuggestion(e)
+                            //           .map((e) => SearchFieldListItem<String>(
+                            //               e,
+                            //               item: e,
+                            //               child: Container(
+                            //                   constraints:
+                            //                       const BoxConstraints(
+                            //                           minHeight: 30),
+                            //                   child: Row(children: [
+                            //                     Expanded(
+                            //                         child: Text(e,
+                            //                             softWrap: false,
+                            //                             maxLines: 2,
+                            //                             overflow: TextOverflow
+                            //                                 .ellipsis))
+                            //                   ]))))
+                            //           .toList()
+                            //           .getRange(
+                            //               0,
+                            //               suggestion.getSuggestion(e).length <
+                            //                       6
+                            //                   ? suggestion
+                            //                       .getSuggestion(e)
+                            //                       .length
+                            //                   : 6)
+                            //           .toList();
+                            //     },
+                            //     dynamicHeight: true,
+                            //     searchInputDecoration: SearchInputDecoration(
+                            //         cursorWidth: 1,
+                            //         filled: true,
+                            //         fillColor: const Color.fromARGB(
+                            //             49, 165, 165, 165),
+                            //         focusedBorder: OutlineInputBorder(
+                            //             borderSide: const BorderSide(
+                            //               color: Color.fromARGB(
+                            //                   255, 8, 128, 183),
+                            //               width: 1,
+                            //             ),
+                            //             borderRadius:
+                            //                 BorderRadius.circular(20)),
+                            //         border: OutlineInputBorder(
+                            //             borderSide: const BorderSide(
+                            //               width: 0.5,
+                            //             ),
+                            //             borderRadius:
+                            //                 BorderRadius.circular(20)),
+                            //         contentPadding:
+                            //             const EdgeInsets.symmetric(
+                            //                 vertical: 0, horizontal: 18),
+                            //         searchStyle: const TextStyle(
+                            //             letterSpacing: 0.4, fontSize: 15)),
+                            //     onSuggestionTap: (SearchFieldListItem term) {
+                            //       List terms = bulletList
+                            //           .map((e) => e.controller.text)
+                            //           .toList();
+                            //       for (int i = 0; i < terms.length; i++) {
+                            //         if (term.item == terms[i] &&
+                            //             bulletList[i].level > 0) {
+                            //           makeMain(i, bulletList[i].level);
+                            //           break;
+                            //         }
+                            //       }
+                            //     },
+                            //     suggestions: suggestion
+                            //         .getTerms()
+                            //         .map((e) => SearchFieldListItem<String>(e,
+                            //             item: e,
+                            //             child: Container(
+                            //                 constraints: const BoxConstraints(
+                            //                     minHeight: 30),
+                            //                 child: Row(children: [
+                            //                   Expanded(
+                            //                       child: Text(e,
+                            //                           softWrap: false,
+                            //                           maxLines: 2,
+                            //                           overflow: TextOverflow
+                            //                               .ellipsis))
+                            //                 ]))))
+                            // .toList())
+                          ),
                         ],
                       )),
                   Expanded(
                       child: Container(
-                          decoration: const BoxDecoration(
-                            border: Border(
+                          decoration: BoxDecoration(
+                            border: const Border(
                                 bottom: BorderSide(
                                     width: 0.5, color: Colors.black)),
-                            color: Color.fromARGB(255, 215, 222, 235),
+                            color: backgroundColor,
                           ),
                           padding: const EdgeInsets.symmetric(
                               vertical: 1, horizontal: 15),
@@ -989,6 +1092,14 @@ class _Test extends State<Test> {
                                                               return;
                                                             }
                                                             setState(() {
+                                                              if (shift) {
+                                                                selectBulletRangeMin =
+                                                                    focused;
+                                                                ;
+                                                              } else {
+                                                                selectBulletRangeMin =
+                                                                    -1;
+                                                              }
                                                               focused = index;
                                                             });
                                                           },
