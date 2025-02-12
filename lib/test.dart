@@ -1,5 +1,9 @@
 import 'dart:math';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
@@ -10,6 +14,10 @@ import 'package:lynklynk/layout/constellation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:lynklynk/utils/bullet.dart' as Bullet;
 import 'package:path/path.dart' as Path;
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:math';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 class Node {
   final int id;
@@ -30,7 +38,7 @@ class Node {
     return {
       'id': id,
       'nodeTerm': nodeTerm,
-      'auxiliaries': auxiliaries.toString(),
+      'auxiliaries': jsonEncode(auxiliaries),
       'color': color,
       'createDate': createDate,
       'updateDate': updateDate,
@@ -116,9 +124,44 @@ class _Test extends State<Test> {
 
   //list of all nodes in the constellation
   List<Node> nodeList = [];
+  Map<String, Node> nodeMap = {};
 
-  bool showPageNavigateLeftButton = false;
-  bool showPageNavigateRightButton = false;
+  //bool for editing mode
+  bool editingMode = true;
+
+  //main node with default set
+  Node mainNode = Node(
+      id: -1,
+      nodeTerm: "",
+      auxiliaries: [],
+      color: Colors.black.toString(),
+      updateDate: DateTime.now().toString(),
+      createDate: DateTime.now().toString());
+
+  //main node hovering bool
+  bool mainNodeHover = false;
+
+  //Main node input TextEditingController
+  TextEditingController mainNodeTextController = TextEditingController();
+
+  //Auxilary node input TextEditingController list
+  List<TextEditingController> auxiliaryNodeTextControllerList = [
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController()
+  ];
+
+  List<bool> auxiliaryNodeSelectedList = [false, false, false];
+
+  //Int index for selected auxiliary node input
+  int selectedAuxiliaryNodeInput = -1;
+
+  ScrollController addNodeController = ScrollController();
+
+  //display loading screen boolean
+  bool loading = true;
+
+  bool _loadingVisible = false;
 
   Color backgroundColor = const Color.fromRGBO(252, 231, 200, 1);
   Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
@@ -133,25 +176,30 @@ class _Test extends State<Test> {
     constellationID = widget.id;
     constellationName = widget.constellationName;
     print("---------------------");
-    ServicesBinding.instance.keyboard.addHandler(_onKey);
+
     _asyncLoadDB();
 
     super.initState();
   }
 
   _asyncLoadDB() async {
+    //loading screen animation
+    await Future.delayed(const Duration(milliseconds: 500));
+    setState(() {
+      _loadingVisible = true;
+    });
+    await Future.delayed(const Duration(milliseconds: 1000));
+    setState(() {
+      _loadingVisible = false;
+    });
+    await Future.delayed(const Duration(milliseconds: 500));
     database = openDatabase(
       // Set the path to the database. Note: Using the `join` function from the
       // `path` package is best practice to ensure the path is correctly
       // constructed for each platform.
-      Path.join(await getDatabasesPath(), 'lynklynk_file_database.db'),
+      Path.join(await getDatabasesPath(), 'lynklynk_node_database.db'),
       // When the database is first created, create a table to store files.
-      onCreate: (db, version) {
-        // Run the CREATE TABLE statement on the database.
-        return db.execute(
-          'CREATE TABLE "${constellationName}_${constellationID.toString()}"(id INTEGER PRIMARY KEY, nodeTerm TEXT, auxiliaries TEXT, color TEXT, createDate TEXT, updateDate TEXT)',
-        );
-      },
+
       onUpgrade: _onUpgrade,
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.
@@ -161,8 +209,19 @@ class _Test extends State<Test> {
     try {
       List<Node> queryResultsList = await getNodeList();
       print(queryResultsList);
+      if (queryResultsList.isNotEmpty) {
+        editingMode = false;
+        mainNode = queryResultsList[0];
+      }
+
+      print(queryResultsList.map((e) => e.nodeTerm).toList());
       setState(() {
         nodeList = queryResultsList;
+        print(queryResultsList);
+        nodeMap = <String, Node>{
+          for (Node n in queryResultsList) n.nodeTerm: n
+        };
+        loading = false;
       });
     } catch (e) {
       print(e);
@@ -188,7 +247,7 @@ class _Test extends State<Test> {
         Node(
           id: id,
           nodeTerm: nodeTerm,
-          auxiliaries: json.decode(auxiliaries),
+          auxiliaries: json.decode(auxiliaries).cast<String>().toList(),
           color: color,
           createDate: createDate,
           updateDate: updateDate,
@@ -196,48 +255,57 @@ class _Test extends State<Test> {
     ];
   }
 
-  Future<void> updateNode(Node file) async {
+  Future<void> insertNode(Node node) async {
+    final db = await database;
+    print(constellationName);
+    await db.insert(
+      '"${constellationName}_$constellationID"',
+      node.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> updateNode(Node node) async {
     // Get a reference to the database.
     final db = await database;
 
     // Update the given Dfile.
     await db.update(
-      constellationName,
-      file.toMap(),
+      '"${constellationName}_$constellationID"',
+      node.toMap(),
       // Ensure that the file has a matching id.
-      where: 'id = ?',
+      where: 'nodeTerm = ?',
       // Pass the file's id as a whereArg to prevent SQL injection.
-      whereArgs: [file.id],
+      whereArgs: [node.nodeTerm],
     );
 
-    updateFiles();
+    updateNodes();
   }
 
-  Future<void> deleteNode(int id, String fileName) async {
+  Future<void> deleteNode(Node node) async {
     // Get a reference to the database.
     final db = await database;
 
     // Remove the file from the database.
     await db.delete(
-      constellationName,
+      '"${constellationName}_$constellationID"',
       // Use a `where` clause to delete a specific file.
-      where: 'id = ?',
+      where: 'nodeTerm = ?',
       // Pass the file's id as a whereArg to prevent SQL injection.
-      whereArgs: [id],
+      whereArgs: [node.nodeTerm],
     );
 
-    await db.execute("DROP TABLE IF EXISTS $fileName");
-    updateFiles();
+    updateNodes();
   }
 
   void _onUpgrade(Database db, int oldVersion, int newVersion) {
     if (oldVersion < 2) {
-      db.execute(
-          "ALTER TABLE files ADD COLUMN starred INTEGER NOT NULL DEFAULT (0);");
+      // db.execute(
+      //     "ALTER TABLE files ADD COLUMN starred INTEGER NOT NULL DEFAULT (0);");
     }
   }
 
-  Future<void> updateFiles() async {
+  Future<void> updateNodes() async {
     try {
       List<Node> queryResultsList = await getNodeList();
       print(queryResultsList);
@@ -249,445 +317,25 @@ class _Test extends State<Test> {
     }
   }
 
-  double getHeight(int h) {
-    return 54 + 50 * h.toDouble();
-  }
-
-  bool _onKey(KeyEvent event) {
-    final key = event.logicalKey.keyLabel;
-    if (event is KeyDownEvent) {
-      if (key == "Shift Left" || key == "Shift Right") {
-        shift = true;
-      }
-      if (shift) {
-        if (key == "Arrow Up") {
-          if (focused < 1) return false;
-          setState(() {
-            focused -= 1;
-            bulletList[focused].focus.requestFocus();
-          });
-        }
-        if (key == "Arrow Down") {
-          if (focused >= bulletList.length - 1) return false;
-          setState(() {
-            focused += 1;
-            bulletList[focused].focus.requestFocus();
-          });
-        }
-        if (key == "Arrow Right") {
-          increasePageNumber();
-        }
-        if (key == "Arrow Left") {
-          decreasePageNumber();
-        }
-      }
-      if (key == "Tab") {
-        int bulletLevel = bulletList[focused].level;
-        if (shift) {
-          if (bulletLevel == 0) return false;
-          setState(() => bulletList[focused].level -= 1);
-        } else {
-          if (bulletLevel == 6) return false;
-          setState(() => bulletList[focused].level += 1);
-        }
-      }
-      if (key == "Enter") {
-        if (!shift && focused > -1) {
-          int insertLevel = focused + 1;
-          TextEditingController newController = TextEditingController(text: "");
-          if (bulletList[focused]
-              .controller
-              .selection
-              .textInside(bulletList[focused].controller.text)
-              .isNotEmpty) {
-            newController = TextEditingController(
-                text: bulletList[focused]
-                    .controller
-                    .selection
-                    .textInside(bulletList[focused].controller.text));
-          }
-          Bullet.Bullet newBullet = Bullet.Bullet(bulletList[focused].level,
-              UniqueKey(), FocusNode(), newController);
-          setState(() {
-            bulletList.insert(insertLevel, newBullet);
-            suggestion.insertTerm(insertLevel, "");
-            bulletList[insertLevel].focus.requestFocus();
-            focused = insertLevel;
-          });
-        }
-        if (shift && focused > -1) {
-          int insertLevel = focused + 1;
-          TextEditingController newController = TextEditingController(text: "");
-          if (bulletList[focused]
-              .controller
-              .selection
-              .textInside(bulletList[focused].controller.text)
-              .isNotEmpty) {
-            newController = TextEditingController(
-                text: bulletList[focused]
-                    .controller
-                    .selection
-                    .textInside(bulletList[focused].controller.text));
-          }
-          Bullet.Bullet newBullet = Bullet.Bullet(bulletList[focused].level + 1,
-              UniqueKey(), FocusNode(), newController);
-          setState(() {
-            bulletList.insert(insertLevel, newBullet);
-            bulletList[insertLevel].focus.requestFocus();
-            suggestion.insertTerm(insertLevel, "");
-            focused = insertLevel;
-          });
-        }
-      }
-    } else if (event is KeyUpEvent) {
-      if (key == "Shift Left" || key == "Shift Right") {
-        shift = false;
-      }
-    } else if (event is KeyRepeatEvent) {
-      // print("Key repeat: $key");
-    }
-
-    return false;
-  }
-
-  bool inSelectBulletRange(int i) {
-    int rangeMin = selectBulletRangeMin;
-    int rangeMax = focused;
-    if (focused < selectBulletRangeMin) {
-      rangeMin = rangeMax;
-      rangeMax = selectBulletRangeMin;
-    }
-
-    if (selectBulletRangeMin < 0) {
-      return false;
-    }
-    if (rangeMin <= i && i <= rangeMax) {
-      return true;
-    }
-    return false;
-  }
-
-  void decreasePageNumber() {
-    if (pageIndex > 1) {
-      setState(() {
-        pageIndex -= 1;
-        showPageNavigateRightButton = true;
-        if (pageIndex == 1) {
-          showPageNavigateLeftButton = false;
-        }
-        pageBulletNumber = calculatePageBulletNumber();
-      });
-    }
-  }
-
-  void increasePageNumber() {
-    int end = pageMaxBulletNumber * pageIndex;
-    if (bulletList.length > end) {
-      setState(() {
-        pageIndex += 1;
-        showPageNavigateLeftButton = true;
-        print(bulletList.length);
-        print(pageMaxBulletNumber * pageIndex);
-        if (pageMaxBulletNumber * pageIndex >= bulletList.length) {
-          showPageNavigateRightButton = false;
-        }
-        pageBulletNumber = calculatePageBulletNumber();
-        print(pageBulletNumber);
-      });
-    }
-  }
-
-  int calculatePageBulletNumber() {
-    int end = pageMaxBulletNumber * pageIndex;
-    if (bulletList.length < end) {
-      return bulletList.length - pageMaxBulletNumber * (pageIndex - 1);
-    }
-
-    return pageMaxBulletNumber;
-  }
-
-  (int, int) returnValidRange() {
-    if (bulletList.length < pageMaxBulletNumber) {
-      return (0, bulletList.length);
-    } else {
-      int start = (pageIndex - 1) * pageMaxBulletNumber;
-      int end = pageMaxBulletNumber * pageIndex;
-
-      if (end > bulletList.length) {
-        end = bulletList.length;
-      }
-      return (start, end);
-    }
-  }
-
-  void makeMain(int index, int level) {
-    int levelTracker = level;
-    int minRange = index;
-    int maxRange = index;
-    List<int> nodePoints = [index];
-    for (int i = index - 1; i >= 0; i--) {
-      if (bulletList[i].level < levelTracker) {
-        nodePoints.add(i);
-        levelTracker = bulletList[i].level;
-        if (levelTracker <= 0) {
-          break;
-        }
-      }
-    }
-    Map<int, List<int>> nodeMapping = {};
-    minRange = nodePoints[nodePoints.length - 1];
-    for (int i = 0; i < nodePoints.length; i++) {
-      int nodeIndex = nodePoints[i];
-      nodeMapping.addEntries(<int, List<int>>{nodeIndex: []}.entries);
-      bool existingSubnode = false;
-      int existingSubnodeLevel = 0;
-      for (int j = nodeIndex + 1; j < bulletList.length; j++) {
-        if (bulletList[j].level <= bulletList[nodeIndex].level) {
-          if (maxRange < j) {
-            print(j);
-            maxRange = j;
-          }
-          break;
-        } else {
-          if (j + 1 == bulletList.length) {
-            maxRange = bulletList.length;
-          }
-          if (existingSubnode && existingSubnodeLevel < bulletList[j].level) {
-            continue;
-          } else {
-            existingSubnode = false;
-          }
-          if (nodePoints.contains(j)) {
-            existingSubnode = true;
-            existingSubnodeLevel = bulletList[j].level;
-            continue;
-          }
-          nodeMapping[nodeIndex]?.add(j);
-        }
-      }
-      setState(() => {});
-    }
-    print(nodeMapping);
-    List<int> newBulletOrdering = [];
-    List<int> newBulletLevelList = [];
-    for (int i = nodePoints.length - 1; i >= 0; i--) {
-      int nodePointIndex = nodePoints[i];
-      newBulletOrdering.insert(0, nodePointIndex);
-      newBulletOrdering += nodeMapping[nodePointIndex] ?? [];
-      newBulletLevelList.insert(0, i);
-      newBulletLevelList += List.generate(
-          nodeMapping[nodePointIndex]?.length ?? 0,
-          (int index) =>
-              bulletList[nodeMapping[nodePointIndex]?[index] ?? 0].level -
-              (bulletList[nodePointIndex].level - i));
-    }
-    print("new ordering: $newBulletOrdering");
-    print(newBulletLevelList);
-
-    List<Bullet.Bullet> newBulletList =
-        newBulletOrdering.map((e) => bulletList[e]).toList();
-
-    print(minRange);
-    print(maxRange);
-    // if (newBulletList.length == bulletList.length || ) {
-    //   maxRange += 1;
-    // }
-    print(maxRange);
-    bulletList.removeRange(minRange, maxRange);
-
-    bulletList = newBulletList + bulletList;
-
-    focused = 0;
-  }
-
-  Future<void> showPopUpMenu(Offset globalPosition, int index) async {
-    double left = globalPosition.dx;
-    double top = globalPosition.dy;
-    await showMenu(
-      color: Colors.white,
-      //add your color
-      context: context,
-      position: RelativeRect.fromLTRB(left, top, 0, 0),
-      items: [
-        const PopupMenuItem(
-          value: 1,
-          child: Padding(
-            padding: EdgeInsets.only(left: 0, right: 40),
-            child: Row(
-              children: [
-                Icon(Icons.edit_sharp),
-                SizedBox(
-                  width: 10,
-                ),
-                Text(
-                  "Edit",
-                  style: TextStyle(color: Colors.black),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const PopupMenuItem(
-          value: 2,
-          child: Padding(
-            padding: EdgeInsets.only(left: 0, right: 40),
-            child: Row(
-              children: [
-                Icon(Icons.delete_forever_sharp),
-                SizedBox(
-                  width: 10,
-                ),
-                Text(
-                  "Delete",
-                  style: TextStyle(color: Colors.black),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-      elevation: 8.0,
-    ).then((value) {
-      print(value);
-      if (value == 1) {}
-      if (value == 2) {
-        int newIndex = index;
-
-        if (newIndex != 0 || bulletList.length == 1) {
-          newIndex -= 1;
-        }
-        setState(() => suggestion.removeAt(index));
-        setState(() {
-          bulletList.removeAt(index);
-
-          focused = newIndex;
-        });
-      }
+  void formatMainNodeText() {
+    List<String> listText = mainNodeTextController.text.split('\n');
+    listText.removeWhere((e) => e.trim().isEmpty);
+    setState(() {
+      mainNodeTextController.text = listText[0];
     });
-  }
-
-  Widget BulletWidget(int index, int level) {
-    return GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onSecondaryTapDown: (TapDownDetails details) {
-          showPopUpMenu(details.globalPosition, index);
-        },
-        onDoubleTap: () {
-          if (bulletList[index].controller.text.isEmpty) return;
-
-          Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => Constellation(
-                    bulletList: bulletList.map((e) => e.level).toList(),
-                    textList: bulletList.map((e) => e.controller.text).toList(),
-                    line: bulletList[index].controller.text),
-              ));
-        },
-        child: Container(
-            padding: const EdgeInsets.only(left: 0, right: 10),
-            child: Row(children: [
-              Container(
-                  padding: const EdgeInsets.all(15),
-                  child: focused == index || inSelectBulletRange(index)
-                      ? const Icon(size: 10, Icons.circle)
-                      : const Icon(size: 10, Icons.circle_outlined)),
-              Container(
-                  alignment: Alignment.center,
-                  child: IntrinsicWidth(
-                      child: Container(
-                    width: MediaQuery.of(context).size.width -
-                        200 -
-                        25 * bulletList[index].level.toDouble(),
-                    // constraints: BoxConstraints(
-                    //     maxWidth: 600 -
-                    //         min(500, 25 * bulletLevelList[index].toDouble())),
-                    decoration: BoxDecoration(
-                        border: focused == index
-                            ? const Border(
-                                left: BorderSide(width: 0.5),
-                                right: BorderSide(width: 0.5))
-                            : const Border(
-                                left:
-                                    BorderSide(width: 0.5, color: Colors.white),
-                                right: BorderSide(
-                                    width: 0.5, color: Colors.white)),
-                        borderRadius: BorderRadius.zero),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Focus(
-                        onFocusChange: (hasFocus) {
-                          if (!hasFocus &&
-                              suggestion.getTerm(index) !=
-                                  bulletList[index].controller.text) {
-                            print(bulletList[index].controller.text);
-                            setState(() => suggestion.setTerm(
-                                bulletList[index].controller.text, index));
-                          }
-                        },
-                        child: TextField(
-                          maxLines: null,
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                          ),
-                          onChanged: (e) {
-                            if (e.contains("\n")) {
-                              var splitLines = e.split('\n');
-                              bulletList[index].controller.text = splitLines[0];
-                              splitLines.removeWhere((e) => e.isEmpty);
-                              bulletList[index].controller.text = splitLines[0];
-                              for (int i = 1; i < splitLines.length; i++) {
-                                insertBullet(index + i, splitLines[i]);
-                              }
-                              setState(() {});
-                              return;
-                            }
-                            print(suggestion.getSuggestion(e));
-                            setState(() {
-                              suggestionList = suggestion.getSuggestion(e);
-                              var suggestionSet = {...suggestionList};
-                              suggestionList = suggestionSet.toList();
-                            });
-                          },
-                          focusNode: bulletList[index].focus,
-                          decoration: const InputDecoration(
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 12),
-                              border: InputBorder.none),
-                          controller: bulletList[index].controller,
-                        )),
-                  ))),
-              const Spacer(),
-              level == 0
-                  ? ReorderableDragStartListener(
-                      index: index,
-                      child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(Icons.star)))
-                  : ReorderableDragStartListener(
-                      index: index,
-                      child: IconButton(
-                          onPressed: () {
-                            makeMain(index, level);
-                          },
-                          icon: const Icon(Icons.star_border))),
-              const SizedBox(width: 8),
-            ])));
-  }
-
-  addBullet() {
-    bulletList.add(Bullet.Bullet(
-        0, UniqueKey(), FocusNode(), TextEditingController(text: "")));
-    suggestion.addTerm("");
-  }
-
-  insertBullet(int index, String bulletText) {
-    bulletList.insert(
-        index,
-        Bullet.Bullet(0, UniqueKey(), FocusNode(),
-            TextEditingController(text: bulletText)));
-    suggestion.addTerm(bulletText);
+    int insertIndex = 0;
+    for (int i = 1; i < listText.length; i++) {
+      if (insertIndex < auxiliaryNodeTextControllerList.length &&
+          auxiliaryNodeTextControllerList[insertIndex].text.isEmpty) {
+        auxiliaryNodeTextControllerList[insertIndex].text = listText[i];
+      } else {
+        auxiliaryNodeTextControllerList.insert(
+            insertIndex, TextEditingController(text: listText[i]));
+        auxiliaryNodeSelectedList.insert(insertIndex, false);
+      }
+      insertIndex++;
+    }
+    print(listText);
   }
 
   Widget proxyDecorator(Widget child, int index, Animation<double> animation) {
@@ -695,23 +343,217 @@ class _Test extends State<Test> {
       animation: animation,
       builder: (BuildContext context, Widget? child) {
         final double animValue = Curves.easeInOut.transform(animation.value);
-        final double elevation = lerpDouble(0, 6, animValue)!;
-        return Material(
-          elevation: elevation,
-          color: Colors.transparent,
-          shadowColor: Colors.transparent,
-          child: child,
+        final double elevation = lerpDouble(1, 6, animValue)!;
+        final double scale = lerpDouble(1, 1.02, animValue)!;
+        return Transform.scale(
+          scale: scale,
+          // Create a Card based on the color and the content of the dragged one
+          // and set its elevation to the animated value.
+          child: auxiliaryNodeInput(index),
         );
       },
       child: child,
     );
   }
 
-  @override
-  void dispose() {
-    ServicesBinding.instance.keyboard.removeHandler(_onKey);
+  Widget auxiliaryNodeInput(int index) {
+    TextEditingController controller = auxiliaryNodeTextControllerList[index];
+    return Container(
+        key: UniqueKey(),
+        child: Container(
+            margin: EdgeInsets.only(bottom: 7),
+            child: Row(
+              children: [
+                Container(
+                    child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                      size: 10,
+                      auxiliaryNodeSelectedList[index]
+                          ? Icons.circle
+                          : Icons.circle_outlined),
+                  onPressed: () {
+                    setState(() {
+                      auxiliaryNodeSelectedList[index] =
+                          !auxiliaryNodeSelectedList[index];
+                    });
+                  },
+                )),
+                Expanded(
+                  child: Card(
+                      // decoration: BoxDecoration(
+                      //     border: Border.all(width: 1, color: Colors.black)),
+                      child: Row(children: [
+                    Expanded(
+                        child: Container(
+                            padding: EdgeInsets.only(right: 18),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                            ),
+                            child: TextField(
+                              controller: controller,
+                              keyboardType: TextInputType.multiline,
+                              maxLines: null,
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                errorBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.all(10.0),
+                              ),
+                            )))
+                  ])),
+                )
+              ],
+            )));
+  }
 
-    super.dispose();
+  void removeAuxiliaryNodeInput() {
+    List<TextEditingController> controllerListTemp =
+        auxiliaryNodeTextControllerList;
+    List<bool> boolListTemp = auxiliaryNodeSelectedList;
+    for (int i = 0; i < boolListTemp.length; i++) {
+      if (boolListTemp[i]) {
+        boolListTemp.removeAt(i);
+        controllerListTemp.removeAt(i);
+        i--;
+      }
+    }
+    setState(() {
+      auxiliaryNodeSelectedList = boolListTemp;
+      auxiliaryNodeTextControllerList = controllerListTemp;
+    });
+  }
+
+  void createNode() {
+    // final int id;
+    // String nodeTerm;
+    // List<String> auxiliaries;
+    // String color;
+    // final String createDate;
+    // String updateDate;
+
+    String nodeTerm = mainNodeTextController.text;
+    if (nodeTerm.isEmpty) {
+      print("Term cannot be empty");
+      return;
+    }
+    Set<String> auxiliaries =
+        auxiliaryNodeTextControllerList.map((e) => e.text).toList().toSet();
+    auxiliaries.removeWhere((e) => e.isEmpty);
+    auxiliaries.removeWhere((e) => e == nodeTerm);
+    print("1");
+    if (nodeMap[nodeTerm] != null) {
+      //term already exists - update
+      print("already exists");
+      Node currentNode = nodeMap[nodeTerm]!;
+      Set<String> currentNodeAux = currentNode.auxiliaries.toSet();
+      currentNode.updateDate = DateTime.now().toString();
+      currentNode.auxiliaries = currentNodeAux.union(auxiliaries).toList();
+      setState(() {
+        nodeMap[nodeTerm] = currentNode;
+      });
+      updateNode(currentNode);
+    } else {
+      print("does not already exists");
+      //term does not exist - create
+      String color = Color.fromARGB(255, 224, 224, 224).toString();
+      String createDate = DateTime.now().toString();
+      String updateDate = DateTime.now().toString();
+
+      Node newNode = Node(
+          id: nodeList.isEmpty ? 1 : nodeList[nodeList.length - 1].id + 1,
+          nodeTerm: nodeTerm,
+          auxiliaries: auxiliaries.toList(),
+          color: color,
+          createDate: createDate,
+          updateDate: updateDate);
+      insertNode(newNode);
+
+      setState(() {
+        addNodeLocally(newNode);
+        mainNode = newNode;
+      });
+    }
+
+    //add auxiliaries
+    createAuxiliaries(auxiliaries, nodeTerm);
+    setState(() {
+      editingMode = !editingMode;
+    });
+  }
+
+  void addNodeLocally(Node newNode) {
+    nodeList.add(newNode);
+    nodeMap[newNode.nodeTerm] = newNode;
+  }
+
+  void createAuxiliaries(Set<String> auxiliaries, String mainNode) {
+    for (int i = 0; i < auxiliaries.length; i++) {
+      String auxTerm = auxiliaries.elementAt(i);
+
+      // node already exists
+      if (nodeMap.containsKey(auxTerm)) {
+        nodeMap[auxTerm]?.auxiliaries.add(mainNode);
+      }
+      // node does not already exist
+      else {
+        Node newNode = Node(
+            id: nodeList[nodeList.length - 1].id + 1,
+            nodeTerm: auxTerm,
+            auxiliaries: [mainNode],
+            color: Color.fromARGB(255, 224, 224, 224).toString(),
+            createDate: DateTime.now().toString(),
+            updateDate: DateTime.now().toString());
+        insertNode(newNode);
+        setState(() {
+          addNodeLocally(newNode);
+        });
+      }
+    }
+  }
+
+  Widget auxiliaryDisplayProxyDecorator(
+      Widget child, int index, Animation<double> animation) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (BuildContext context, Widget? child) {
+        final double animValue = Curves.easeInOut.transform(animation.value);
+        final double elevation = lerpDouble(1, 6, animValue)!;
+        final double scale = lerpDouble(1, 1.02, animValue)!;
+        return Transform.scale(
+          scale: scale,
+          // Create a Card based on the color and the content of the dragged one
+          // and set its elevation to the animated value.
+          child: auxiliaryDisplay(mainNode.auxiliaries[index]),
+        );
+      },
+      child: child,
+    );
+  }
+
+  Widget auxiliaryDisplay(String term) {
+    return Container(
+        key: UniqueKey(),
+        child: Row(
+          children: [
+            Expanded(
+                child: GestureDetector(
+                    onDoubleTap: () {
+                      setState(() {
+                        mainNode = nodeMap[term]!;
+                      });
+                    },
+                    child: Card(
+                        shape: ContinuousRectangleBorder(),
+                        color: Colors.white,
+                        child: Container(
+                            margin: EdgeInsets.only(right: 20),
+                            padding: EdgeInsets.all(10),
+                            child: Text(term)))))
+          ],
+        ));
   }
 
   @override
@@ -742,9 +584,9 @@ class _Test extends State<Test> {
                   titleSpacing: 0,
                   primary: false,
 
-                  shape: const Border(
-                      bottom: BorderSide(
-                          color: Color.fromARGB(255, 64, 70, 81), width: 0.5)),
+                  // shape: const Border(
+                  //     bottom: BorderSide(
+                  //         color: Color.fromARGB(255, 0, 0, 0), width: 1)),
                   backgroundColor: const Color.fromARGB(255, 255, 255, 255),
                   // backgroundColor: const Color.fromARGB(255, 75, 185, 233),
                   title: Container(
@@ -845,461 +687,670 @@ class _Test extends State<Test> {
                     builder: (context) => const Icon(Icons.rocket_launch_sharp),
                   ),
                 ),
-                body: Column(children: [
-                  Container(
-                      decoration: const BoxDecoration(
-                        border: Border(
-                            bottom:
-                                BorderSide(width: 0.5, color: Colors.black)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      height: 55,
-                      child: Row(
-                        children: [
-                          Container(
-                              height: 30,
-                              width: 30,
-                              decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(
-                                      color: const Color.fromARGB(255, 0, 0, 0),
-                                      width: 0.5)),
-                              child: IconButton(
-                                padding: EdgeInsets.zero,
-                                style: const ButtonStyle(
-                                    shape: WidgetStatePropertyAll(
-                                        ContinuousRectangleBorder())),
-                                icon: const Icon(
-                                    size: 24, Icons.arrow_left_rounded),
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                },
-                              )),
-                          const SizedBox(width: 10),
-                          Container(
-                              height: 30,
-                              width: 30,
-                              decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(
-                                      color: const Color.fromARGB(255, 0, 0, 0),
-                                      width: 0.5)),
-                              child: IconButton(
-                                  padding: EdgeInsets.zero,
-                                  style: const ButtonStyle(
-                                      shape: WidgetStatePropertyAll(
-                                          ContinuousRectangleBorder())),
-                                  onPressed: () {
-                                    // saveFile(widget.path);
-                                  },
-                                  icon:
-                                      const Icon(size: 20, Icons.save_sharp))),
-                          const SizedBox(width: 10),
-                          Container(
-                              height: 30,
-                              width: 30,
-                              decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(
-                                      color: const Color.fromARGB(255, 0, 0, 0),
-                                      width: 0.5)),
-                              child: IconButton(
-                                  padding: EdgeInsets.zero,
-                                  style: const ButtonStyle(
-                                      shape: WidgetStatePropertyAll(
-                                          ContinuousRectangleBorder())),
-                                  onPressed: () {
-                                    // saveFile(widget.path);
-                                  },
-                                  icon: const Icon(
-                                      size: 20, Icons.settings_sharp))),
-                          const Spacer(),
-                          Container(
-                            width: min(
-                                MediaQuery.of(context).size.width - 200, 700),
-                            height: 40,
-                            margin: const EdgeInsets.all(10),
-                            // child: SearchField<String>(
-                            //     onSearchTextChanged: (String e) {
-                            //       if (e.isEmpty) return [];
-                            //       return suggestion
-                            //           .getSuggestion(e)
-                            //           .map((e) => SearchFieldListItem<String>(
-                            //               e,
-                            //               item: e,
-                            //               child: Container(
-                            //                   constraints:
-                            //                       const BoxConstraints(
-                            //                           minHeight: 30),
-                            //                   child: Row(children: [
-                            //                     Expanded(
-                            //                         child: Text(e,
-                            //                             softWrap: false,
-                            //                             maxLines: 2,
-                            //                             overflow: TextOverflow
-                            //                                 .ellipsis))
-                            //                   ]))))
-                            //           .toList()
-                            //           .getRange(
-                            //               0,
-                            //               suggestion.getSuggestion(e).length <
-                            //                       6
-                            //                   ? suggestion
-                            //                       .getSuggestion(e)
-                            //                       .length
-                            //                   : 6)
-                            //           .toList();
-                            //     },
-                            //     dynamicHeight: true,
-                            //     searchInputDecoration: SearchInputDecoration(
-                            //         cursorWidth: 1,
-                            //         filled: true,
-                            //         fillColor: const Color.fromARGB(
-                            //             49, 165, 165, 165),
-                            //         focusedBorder: OutlineInputBorder(
-                            //             borderSide: const BorderSide(
-                            //               color: Color.fromARGB(
-                            //                   255, 8, 128, 183),
-                            //               width: 1,
-                            //             ),
-                            //             borderRadius:
-                            //                 BorderRadius.circular(20)),
-                            //         border: OutlineInputBorder(
-                            //             borderSide: const BorderSide(
-                            //               width: 0.5,
-                            //             ),
-                            //             borderRadius:
-                            //                 BorderRadius.circular(20)),
-                            //         contentPadding:
-                            //             const EdgeInsets.symmetric(
-                            //                 vertical: 0, horizontal: 18),
-                            //         searchStyle: const TextStyle(
-                            //             letterSpacing: 0.4, fontSize: 15)),
-                            //     onSuggestionTap: (SearchFieldListItem term) {
-                            //       List terms = bulletList
-                            //           .map((e) => e.controller.text)
-                            //           .toList();
-                            //       for (int i = 0; i < terms.length; i++) {
-                            //         if (term.item == terms[i] &&
-                            //             bulletList[i].level > 0) {
-                            //           makeMain(i, bulletList[i].level);
-                            //           break;
-                            //         }
-                            //       }
-                            //     },
-                            //     suggestions: suggestion
-                            //         .getTerms()
-                            //         .map((e) => SearchFieldListItem<String>(e,
-                            //             item: e,
-                            //             child: Container(
-                            //                 constraints: const BoxConstraints(
-                            //                     minHeight: 30),
-                            //                 child: Row(children: [
-                            //                   Expanded(
-                            //                       child: Text(e,
-                            //                           softWrap: false,
-                            //                           maxLines: 2,
-                            //                           overflow: TextOverflow
-                            //                               .ellipsis))
-                            //                 ]))))
-                            // .toList())
-                          ),
-                        ],
-                      )),
-                  Expanded(
-                      child: Container(
-                          decoration: BoxDecoration(
-                            border: const Border(
-                                bottom: BorderSide(
-                                    width: 0.5, color: Colors.black)),
-                            color: backgroundColor,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 1, horizontal: 15),
-                          child: Column(children: [
-                            Expanded(
-                                child: Container(
-                                    clipBehavior: Clip.hardEdge,
-                                    margin: const EdgeInsets.only(bottom: 6),
-                                    decoration: const BoxDecoration(
-                                        // borderRadius: BorderRadius.only(
-                                        //     bottomLeft: Radius.circular(5),
-                                        //     bottomRight: Radius.circular(5)),
-                                        border: Border(
-                                            bottom: BorderSide(
-                                                color: Color.fromARGB(
-                                                    255, 169, 169, 169)))),
-                                    child: SingleChildScrollView(
-                                        scrollDirection: Axis.vertical,
-                                        controller: pageViewScrollController,
-                                        child: Container(
+                body: loading
+                    ? AnimatedOpacity(
+                        opacity: _loadingVisible ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 500),
+                        child: Container(
+                            child: Center(
+                                child: LoadingAnimationWidget.halfTriangleDot(
+                                    color: primary2, size: 50))))
+                    : Container(
+                        decoration: const BoxDecoration(
+                          color: Color.fromARGB(
+                              251, 255, 255, 255), // Background color
+                        ),
+                        padding: const EdgeInsets.only(
+                            bottom: 10, right: 10, left: 10),
+                        child: Container(
+                            decoration: BoxDecoration(
+                              border:
+                                  Border.all(width: 0.8, color: Colors.black),
+                            ),
+                            child: Column(children: [
+                              Container(
+                                  decoration: BoxDecoration(
+                                    color: primary1,
+                                    border: const Border(
+                                        bottom: BorderSide(
+                                            width: 1, color: Colors.black)),
+                                  ),
+                                  padding: const EdgeInsets.only(
+                                      left: 25, right: 25),
+                                  height: 60,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                          height: 40,
+                                          width: 40,
+                                          decoration: BoxDecoration(
                                             color: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 15, horizontal: 15),
-                                            child: Column(children: [
-                                              ReorderableListView.builder(
-                                                scrollController:
-                                                    reorderScrollController,
-                                                proxyDecorator: proxyDecorator,
+                                            border: Border.all(
+                                                color: const Color.fromARGB(
+                                                    255, 0, 0, 0),
+                                                width: 1),
+                                          ),
+                                          child: IconButton(
+                                            padding: EdgeInsets.zero,
+                                            style: const ButtonStyle(
+                                                shape: WidgetStatePropertyAll(
+                                                    ContinuousRectangleBorder())),
+                                            icon: const Icon(
+                                                size: 24,
+                                                Icons.arrow_left_rounded),
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                            },
+                                          )),
+                                      const SizedBox(width: 15),
+                                      Container(
+                                          height: 40,
+                                          width: 40,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            border: Border.all(
+                                                color: const Color.fromARGB(
+                                                    255, 0, 0, 0),
+                                                width: 1),
+                                          ),
+                                          child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              style: const ButtonStyle(
+                                                  shape: WidgetStatePropertyAll(
+                                                      ContinuousRectangleBorder())),
+                                              onPressed: () {
+                                                // saveFile(widget.path);
+                                              },
+                                              icon: const Icon(
+                                                  size: 20, Icons.save_sharp))),
+                                      const SizedBox(width: 15),
+                                      Container(
+                                          height: 40,
+                                          width: 40,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            border: Border.all(
+                                                color: const Color.fromARGB(
+                                                    255, 0, 0, 0),
+                                                width: 1),
+                                          ),
+                                          child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              style: const ButtonStyle(
+                                                  shape: WidgetStatePropertyAll(
+                                                      ContinuousRectangleBorder())),
+                                              onPressed: () {
+                                                // saveFile(widget.path);
+                                              },
+                                              icon: const Icon(
+                                                  size: 20,
+                                                  Icons.settings_sharp))),
+                                      const SizedBox(width: 15),
+                                      Container(
+                                          height: 40,
+                                          width: 90,
+                                          decoration: BoxDecoration(
+                                            color: editingMode
+                                                ? primary3
+                                                : Colors.white,
+                                            border: Border.all(
+                                                color: const Color.fromARGB(
+                                                    255, 0, 0, 0),
+                                                width: 1),
+                                          ),
+                                          child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              style: const ButtonStyle(
+                                                  shape: WidgetStatePropertyAll(
+                                                      ContinuousRectangleBorder())),
+                                              onPressed: () {
+                                                setState(() {
+                                                  if (nodeList.isNotEmpty) {
+                                                    editingMode = !editingMode;
+                                                  }
+                                                  print(nodeList
+                                                      .map((e) => e.toMap()));
+                                                });
+                                              },
+                                              icon: Icon(
+                                                  color: editingMode
+                                                      ? Colors.white
+                                                      : Colors.black,
+                                                  size: 20,
+                                                  Icons.edit))),
+                                      const Spacer(),
+                                      Container(
+                                        constraints:
+                                            BoxConstraints(maxWidth: 60),
+                                        child: SearchAnchor(
+                                            viewBackgroundColor: primary1,
+                                            viewShape:
+                                                const ContinuousRectangleBorder(
+                                                    side: BorderSide(
+                                                        width: 1,
+                                                        color: Colors.black)),
+                                            builder: (BuildContext context,
+                                                SearchController controller) {
+                                              return SearchBar(
+                                                shape: const WidgetStatePropertyAll(
+                                                    ContinuousRectangleBorder()),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                        maxHeight: 40),
+                                                backgroundColor:
+                                                    WidgetStatePropertyAll(
+                                                        primary1),
+                                                overlayColor:
+                                                    WidgetStatePropertyAll(
+                                                        primary1),
+                                                surfaceTintColor:
+                                                    const WidgetStatePropertyAll(
+                                                        Colors.transparent),
+                                                shadowColor:
+                                                    const WidgetStatePropertyAll(
+                                                        Colors.transparent),
+                                                controller: controller,
+                                                padding:
+                                                    const WidgetStatePropertyAll<
+                                                            EdgeInsets>(
+                                                        EdgeInsets.symmetric(
+                                                            horizontal: 16.0)),
+                                                onTap: () {
+                                                  controller.openView();
+                                                },
+                                                onChanged: (_) {
+                                                  controller.openView();
+                                                },
+                                                leading:
+                                                    const Icon(Icons.search),
+                                                // trailing: <Widget>[
+                                                //   Tooltip(
+                                                //     message: 'Change brightness mode',
+                                                //     child: IconButton(
+                                                //       isSelected: true,
+                                                //       onPressed: () {},
+                                                //       icon: const Icon(
+                                                //           Icons.wb_sunny_outlined),
+                                                //       selectedIcon: const Icon(
+                                                //           Icons.brightness_2_outlined),
+                                                //     ),
+                                                //   )
+                                                // ],
+                                              );
+                                            },
+                                            suggestionsBuilder: (BuildContext
+                                                    context,
+                                                SearchController controller) {
+                                              List<String> suggestionList = [];
+
+                                              return suggestionList.map((e) {
+                                                return Container(
+                                                    child: ListTile(
+                                                  tileColor: Colors.white,
+                                                  title: Text(e),
+                                                  onTap: () {
+                                                    setState(() {
+                                                      controller.closeView(e);
+                                                    });
+                                                  },
+                                                ));
+                                              });
+                                            }),
+                                      ),
+                                    ],
+                                  )),
+                              editingMode
+                                  ? Expanded(
+                                      child: Container(
+                                          decoration: BoxDecoration(
+                                              color: backgroundColor),
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 20),
+                                          child: ListView(
+                                            controller: addNodeController,
+                                            children: [
+                                              SizedBox(height: 20),
+                                              Row(
+                                                children: [
+                                                  const Text(
+                                                      style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 20),
+                                                      "Main Node"),
+                                                  Spacer(),
+                                                  TextButton(
+                                                      onPressed: () {
+                                                        createNode();
+                                                      },
+                                                      child: Text(
+                                                          "Create Constellation"))
+                                                ],
+                                              ),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                      child: Container(
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.white,
+                                                            border: Border.all(
+                                                                width: 1,
+                                                                color: Colors
+                                                                    .black),
+                                                          ),
+                                                          child: TextField(
+                                                            controller:
+                                                                mainNodeTextController,
+                                                            decoration:
+                                                                const InputDecoration(
+                                                              hintText:
+                                                                  'Ex: The Senate under the Roman Empire',
+                                                              contentPadding:
+                                                                  EdgeInsets
+                                                                      .all(
+                                                                          10.0),
+                                                            ),
+                                                            minLines: 8,
+                                                            keyboardType:
+                                                                TextInputType
+                                                                    .multiline,
+                                                            textInputAction:
+                                                                TextInputAction
+                                                                    .next,
+                                                            maxLines: 8,
+                                                          ))),
+                                                  Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Container(
+                                                          margin:
+                                                              EdgeInsets.all(
+                                                                  10),
+                                                          decoration: BoxDecoration(
+                                                              border: Border.all(
+                                                                  width: 1,
+                                                                  color: Colors
+                                                                      .black)),
+                                                          padding:
+                                                              EdgeInsets.all(
+                                                                  10),
+                                                          child: IconButton(
+                                                              onPressed: () {
+                                                                formatMainNodeText();
+                                                              },
+                                                              icon: Icon(Icons
+                                                                  .rebase_edit))),
+                                                      Container(
+                                                          height: 134,
+                                                          margin:
+                                                              EdgeInsets.only(
+                                                                  bottom: 10),
+                                                          decoration: BoxDecoration(
+                                                              border: Border.all(
+                                                                  width: 1,
+                                                                  color: Colors
+                                                                      .black)),
+                                                          padding:
+                                                              EdgeInsets.all(
+                                                                  10),
+                                                          child: IconButton(
+                                                              onPressed: () {
+                                                                setState(() {
+                                                                  mainNodeTextController
+                                                                      .text = "";
+                                                                  auxiliaryNodeTextControllerList =
+                                                                      [
+                                                                    TextEditingController(),
+                                                                    TextEditingController(),
+                                                                    TextEditingController(),
+                                                                  ];
+                                                                  auxiliaryNodeSelectedList =
+                                                                      [
+                                                                    false,
+                                                                    false,
+                                                                    false
+                                                                  ];
+                                                                });
+                                                              },
+                                                              icon: Icon(Icons
+                                                                  .restart_alt)))
+                                                    ],
+                                                  )
+                                                ],
+                                              ),
+                                              SizedBox(height: 10),
+                                              Row(children: [
+                                                Text(
+                                                    style:
+                                                        TextStyle(fontSize: 18),
+                                                    "Auxiliary Nodes"),
+                                                Spacer(),
+                                                Container(
+                                                    height: 30,
+                                                    width: 30,
+                                                    child:
+                                                        auxiliaryNodeSelectedList
+                                                                .where((e) => e)
+                                                                .isNotEmpty
+                                                            ? IconButton(
+                                                                padding:
+                                                                    EdgeInsets
+                                                                        .zero,
+                                                                onPressed: () {
+                                                                  removeAuxiliaryNodeInput();
+                                                                },
+                                                                icon: Icon(Icons
+                                                                    .delete))
+                                                            : SizedBox())
+                                              ]),
+                                              SizedBox(height: 5),
+                                              ReorderableListView(
                                                 shrinkWrap: true,
+                                                physics:
+                                                    ClampingScrollPhysics(),
+                                                padding: const EdgeInsets.only(
+                                                    right: 10),
+                                                proxyDecorator: proxyDecorator,
                                                 onReorder: (int oldIndex,
                                                     int newIndex) {
-                                                  if (oldIndex == newIndex) {
-                                                    return;
-                                                  }
-
-                                                  if (newIndex >
-                                                      bulletList.length) {
-                                                    newIndex =
-                                                        bulletList.length;
-                                                  }
-                                                  if (oldIndex < newIndex) {
-                                                    newIndex -= 1;
-                                                  }
-                                                  bulletList[oldIndex];
-                                                  setState(() =>
-                                                      suggestion.swapLocation(
-                                                          oldIndex, newIndex));
                                                   setState(() {
-                                                    focused = newIndex;
+                                                    if (oldIndex < newIndex) {
+                                                      newIndex -= 1;
+                                                    }
+                                                    final TextEditingController
+                                                        item =
+                                                        auxiliaryNodeTextControllerList
+                                                            .removeAt(oldIndex);
+                                                    final bool item1 =
+                                                        auxiliaryNodeSelectedList
+                                                            .removeAt(oldIndex);
 
-                                                    bulletList.insert(
-                                                        newIndex,
-                                                        bulletList.removeAt(
-                                                            oldIndex));
+                                                    auxiliaryNodeTextControllerList
+                                                        .insert(newIndex, item);
+                                                    auxiliaryNodeSelectedList
+                                                        .insert(
+                                                            newIndex, item1);
+                                                    selectedAuxiliaryNodeInput =
+                                                        newIndex;
                                                   });
                                                 },
-                                                buildDefaultDragHandles: false,
-                                                itemCount:
-                                                    calculatePageBulletNumber(),
-                                                itemBuilder:
-                                                    (BuildContext context,
-                                                        int index) {
-                                                  index = index +
-                                                      (pageIndex - 1) *
-                                                          pageMaxBulletNumber;
-                                                  return Container(
-                                                      key: Key(bulletList[index]
-                                                          .uniqueKey
-                                                          .toString()),
-                                                      child: (TapRegion(
-                                                          onTapInside: (tap) {
-                                                            if (focused ==
-                                                                index) {
-                                                              return;
-                                                            }
-                                                            setState(() {
-                                                              if (shift) {
-                                                                selectBulletRangeMin =
-                                                                    focused;
-                                                                ;
-                                                              } else {
-                                                                selectBulletRangeMin =
-                                                                    -1;
-                                                              }
-                                                              focused = index;
-                                                            });
-                                                          },
-                                                          onTapOutside: (tap) {
-                                                            if (focused !=
-                                                                index) {
-                                                              return;
-                                                            }
-
-                                                            setState() {
-                                                              focused = -1;
-                                                            }
-                                                          },
-                                                          child: Card(
-                                                              shadowColor:
-                                                                  const Color.fromARGB(
-                                                                      255,
-                                                                      187,
-                                                                      59,
-                                                                      59),
-                                                              shape: const Border(
-                                                                  left: BorderSide(
-                                                                      color:
-                                                                          Color.fromARGB(
-                                                                              93,
-                                                                              0,
-                                                                              0,
-                                                                              0),
-                                                                      width:
-                                                                          0.5)),
-                                                              color:
-                                                                  Colors.white,
-                                                              margin: EdgeInsets
-                                                                  .only(
-                                                                left: (25 *
-                                                                    bulletList[
-                                                                            index]
-                                                                        .level
-                                                                        .toDouble()),
-                                                                top: 1.5,
-                                                                bottom: index + 1 <
-                                                                            bulletList
-                                                                                .length &&
-                                                                        bulletList[index + 1].level ==
-                                                                            0
-                                                                    ? 5
-                                                                    : 0,
-                                                              ),
-                                                              child: Column(
-                                                                  children: [
-                                                                    BulletWidget(
-                                                                        index,
-                                                                        bulletList[index]
-                                                                            .level),
-                                                                    focused == index &&
-                                                                            (inSuggestionArea ||
-                                                                                bulletList[index].focus.hasFocus) &&
-                                                                            bulletList[index].controller.text.isNotEmpty &&
-                                                                            suggestionList.isNotEmpty
-                                                                        ? MouseRegion(
-                                                                            onEnter: (e) {
-                                                                              setState(() {
-                                                                                inSuggestionArea = true;
-                                                                              });
-                                                                            },
-                                                                            onExit: (e) {
-                                                                              setState(() {
-                                                                                inSuggestionArea = false;
-                                                                              });
-                                                                            },
-                                                                            child: Column(
-                                                                              children: [
-                                                                                Container(padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 56), alignment: Alignment.centerLeft, child: const Text(style: TextStyle(fontWeight: FontWeight.bold), "Suggestions")),
-                                                                                ListView.builder(
-                                                                                    shrinkWrap: true,
-                                                                                    itemCount: suggestionList.length < 6 ? suggestionList.length : 6,
-                                                                                    itemBuilder: (BuildContext context, int suggestionIndex) {
-                                                                                      return Container(
-                                                                                        padding: const EdgeInsets.only(bottom: 10, left: 56),
-                                                                                        // decoration:
-                                                                                        //     const BoxDecoration(border: Border(top: BorderSide(width: 1, color: Colors.black))),
-                                                                                        height: 30,
-
-                                                                                        child: InkWell(
-                                                                                            child: Text(
-                                                                                              overflow: TextOverflow.ellipsis,
-                                                                                              suggestionList[suggestionIndex],
-                                                                                              textAlign: TextAlign.left,
-                                                                                            ),
-                                                                                            onTap: () {
-                                                                                              setState(() {
-                                                                                                print("test");
-                                                                                                bulletList[index].controller.text = suggestionList[suggestionIndex];
-                                                                                                suggestionList = [];
-                                                                                              });
-                                                                                            }),
-                                                                                      );
-                                                                                    })
-                                                                              ],
-                                                                            ))
-                                                                        : const SizedBox()
-                                                                  ])))));
+                                                children:
+                                                    auxiliaryNodeTextControllerList
+                                                        .asMap()
+                                                        .map((i, e) => MapEntry(
+                                                            i,
+                                                            auxiliaryNodeInput(
+                                                                i)))
+                                                        .values
+                                                        .toList(),
+                                              ),
+                                              IconButton(
+                                                style: const ButtonStyle(
+                                                    shape: WidgetStatePropertyAll(
+                                                        ContinuousRectangleBorder())),
+                                                icon: Icon(Icons.add),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    auxiliaryNodeTextControllerList
+                                                        .add(
+                                                            TextEditingController());
+                                                    auxiliaryNodeSelectedList
+                                                        .add(false);
+                                                  });
                                                 },
                                               ),
-                                            ]))))),
-                            Container(
-                                margin: const EdgeInsets.only(bottom: 6),
-                                child: Row(children: [
-                                  showPageNavigateLeftButton
-                                      ? Container(
-                                          height: 30,
-                                          width: 30,
+                                              const SizedBox(height: 20),
+                                            ],
+                                          )))
+                                  : Expanded(
+                                      child: Container(
                                           decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(5),
-                                              border: Border.all(
-                                                  color: const Color.fromARGB(
-                                                      255, 0, 0, 0),
-                                                  width: 0.5)),
-                                          child: IconButton(
-                                              padding: EdgeInsets.zero,
-                                              style: const ButtonStyle(
-                                                  shape: WidgetStatePropertyAll(
-                                                      ContinuousRectangleBorder())),
-                                              onPressed: () {
-                                                decreasePageNumber();
-                                              },
-                                              icon: const Icon(
-                                                  size: 15,
-                                                  Icons
-                                                      .arrow_back_ios_new_sharp)))
-                                      : const SizedBox(
-                                          height: 30,
-                                          width: 30,
-                                        ),
-                                  // Spacer(),
-                                  // Container(
-                                  //     width: 80,
-                                  //     decoration: BoxDecoration(
-                                  //         borderRadius: const BorderRadius.all(
-                                  //           Radius.circular(25.0),
-                                  //         ),
-                                  //         boxShadow: [
-                                  //           BoxShadow(
-                                  //             color:
-                                  //                 const Color.fromARGB(255, 0, 0, 0)
-                                  //                     .withOpacity(0.2),
-                                  //             spreadRadius: 0.5,
-                                  //             blurRadius: 1,
-                                  //             offset: Offset(0, 1),
-                                  //           )
-                                  //         ]),
-                                  //     child: IconButton(
-                                  //         style: ButtonStyle(
-                                  //             backgroundColor:
-                                  //                 WidgetStateProperty.all(
-                                  //                     const Color.fromARGB(
-                                  //                         255, 255, 255, 255))),
-                                  //         color: Colors.black,
-                                  //         onPressed: () {
-                                  //           setState(() {
-                                  //             addBullet();
-                                  //             pageViewScrollController.jumpTo(2 *
-                                  //                 pageViewScrollController
-                                  //                     .position.maxScrollExtent);
-                                  //           });
-                                  //         },
-                                  //         icon: const Icon(Icons.add))),
-                                  const Spacer(),
-                                  showPageNavigateRightButton
-                                      ? Container(
-                                          height: 30,
-                                          width: 30,
-                                          decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(5),
-                                              border: Border.all(
-                                                  color: const Color.fromARGB(
-                                                      255, 0, 0, 0),
-                                                  width: 0.5)),
-                                          child: IconButton(
-                                              padding: EdgeInsets.zero,
-                                              style: const ButtonStyle(
-                                                  shape: WidgetStatePropertyAll(
-                                                      ContinuousRectangleBorder())),
-                                              onPressed: () {
-                                                increasePageNumber();
-                                              },
-                                              icon: const Icon(
-                                                  size: 15,
-                                                  Icons
-                                                      .arrow_forward_ios_sharp)))
-                                      : const SizedBox(
-                                          height: 30,
-                                          width: 30,
-                                        ),
-                                ]))
-                          ])))
-                ]))));
+                                              color: backgroundColor),
+                                          child: Row(
+                                            children: [
+                                              Column(children: [
+                                                Expanded(
+                                                    child: MouseRegion(
+                                                  onEnter: (details) =>
+                                                      setState(() =>
+                                                          mainNodeHover = true),
+                                                  onExit: (details) =>
+                                                      setState(() {
+                                                    mainNodeHover = false;
+                                                  }),
+                                                  child: Container(
+                                                      constraints: BoxConstraints(
+                                                          minWidth: MediaQuery.sizeOf(context)
+                                                                      .width <
+                                                                  900
+                                                              ? MediaQuery.sizeOf(
+                                                                          context)
+                                                                      .width /
+                                                                  2
+                                                              : MediaQuery.sizeOf(
+                                                                          context)
+                                                                      .width /
+                                                                  2.5,
+                                                          maxWidth: MediaQuery.sizeOf(
+                                                                          context)
+                                                                      .width <
+                                                                  900
+                                                              ? MediaQuery.sizeOf(
+                                                                          context)
+                                                                      .width /
+                                                                  2
+                                                              : MediaQuery.sizeOf(
+                                                                          context)
+                                                                      .width /
+                                                                  2.5),
+                                                      padding: EdgeInsets.all(20),
+                                                      child: Stack(children: [
+                                                        (
+                                                            // Main node card
+                                                            Card(
+                                                                shape: const ContinuousRectangleBorder(
+                                                                    side: BorderSide(
+                                                                        width:
+                                                                            1,
+                                                                        color: Colors
+                                                                            .black)),
+                                                                child:
+                                                                    Container(
+                                                                        decoration:
+                                                                            const BoxDecoration(
+                                                                          color:
+                                                                              Colors.white,
+                                                                          boxShadow: const [
+                                                                            BoxShadow(
+                                                                              color: const Color.fromARGB(255, 0, 0, 0),
+                                                                              blurRadius: 0,
+                                                                              offset: Offset(6, 6),
+                                                                              spreadRadius: 1,
+                                                                            )
+                                                                          ],
+                                                                        ),
+                                                                        alignment:
+                                                                            Alignment
+                                                                                .center,
+                                                                        child: Container(
+                                                                            padding:
+                                                                                EdgeInsets.all(15),
+                                                                            child: Text(mainNode.nodeTerm))))),
+                                                        Container(
+                                                            margin:
+                                                                EdgeInsets.all(
+                                                                    5),
+                                                            color:
+                                                                Color.fromARGB(
+                                                                    0, 0, 0, 0),
+                                                            padding:
+                                                                EdgeInsets.all(
+                                                                    8),
+                                                            child: Row(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .end,
+                                                              children: [
+                                                                IconButton(
+                                                                    onPressed:
+                                                                        () {},
+                                                                    constraints:
+                                                                        BoxConstraints(),
+                                                                    style:
+                                                                        const ButtonStyle(
+                                                                      overlayColor:
+                                                                          WidgetStatePropertyAll(
+                                                                              Colors.transparent),
+                                                                    ),
+                                                                    padding:
+                                                                        EdgeInsets
+                                                                            .zero,
+                                                                    icon: Icon(
+                                                                        color: Color(int.parse(
+                                                                            mainNode.color.split('(0x')[1].split(')')[
+                                                                                0],
+                                                                            radix:
+                                                                                16)),
+                                                                        Icons
+                                                                            .circle)),
+                                                                Spacer(),
+                                                                mainNodeHover
+                                                                    ? IconButton(
+                                                                        constraints:
+                                                                            BoxConstraints(),
+                                                                        style: const ButtonStyle(
+                                                                            overlayColor: WidgetStatePropertyAll(Color.fromARGB(
+                                                                                0,
+                                                                                0,
+                                                                                0,
+                                                                                0)),
+                                                                            shape:
+                                                                                WidgetStatePropertyAll(ContinuousRectangleBorder())),
+                                                                        padding:
+                                                                            EdgeInsets.zero,
+                                                                        icon: Icon(
+                                                                            Icons.edit),
+                                                                        onPressed:
+                                                                            () {},
+                                                                      )
+                                                                    : SizedBox()
+                                                              ],
+                                                            )),
+                                                      ])),
+                                                ))
+                                              ]),
+                                              Expanded(
+                                                  child: ListView(
+                                                children: [
+                                                  Container(
+                                                    decoration: BoxDecoration(
+                                                        border: Border.all(
+                                                            width: 1,
+                                                            color:
+                                                                Colors.black)),
+                                                    margin: EdgeInsets.only(
+                                                        top: 24, right: 20),
+                                                    padding: EdgeInsets.only(
+                                                        left: 10,
+                                                        top: 10,
+                                                        bottom: 10),
+                                                    child: ReorderableListView(
+                                                        shrinkWrap: true,
+                                                        physics:
+                                                            ClampingScrollPhysics(),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .only(
+                                                                right: 10),
+                                                        proxyDecorator:
+                                                            auxiliaryDisplayProxyDecorator,
+                                                        onReorder:
+                                                            (int oldIndex,
+                                                                int newIndex) {
+                                                          setState(() {
+                                                            if (oldIndex <
+                                                                newIndex) {
+                                                              newIndex -= 1;
+                                                            }
+
+                                                            if (oldIndex !=
+                                                                newIndex) {
+                                                              String term =
+                                                                  mainNode.auxiliaries[
+                                                                      oldIndex];
+
+                                                              mainNode.auxiliaries[
+                                                                      oldIndex] =
+                                                                  mainNode.auxiliaries[
+                                                                      newIndex];
+                                                              mainNode.auxiliaries[
+                                                                      newIndex] =
+                                                                  term;
+                                                            }
+                                                          });
+                                                        },
+                                                        children: mainNode
+                                                            .auxiliaries
+                                                            .map((e) =>
+                                                                auxiliaryDisplay(
+                                                                    e))
+                                                            .toList()),
+                                                  )
+                                                ],
+                                              ))
+                                            ],
+                                          )))
+                            ])
+                            //  Container(
+                            //     decoration: BoxDecoration(color: backgroundColor),
+                            //     child: Container(
+                            //         alignment: Alignment.center,
+                            //         child:
+                            //             Stack(alignment: Alignment.center, children: [
+                            //           Row(
+                            //             children: [
+                            //               Container(
+                            //                   margin: EdgeInsets.only(bottom: 60),
+                            //                   child: IconButton(
+                            //                     icon: Icon(Icons.arrow_back),
+                            //                     onPressed: () {
+                            //                       Navigator.pop(context);
+                            //                     },
+                            //                   ))
+                            //             ],
+                            //           ),
+                            //           Column(
+                            //               mainAxisAlignment: MainAxisAlignment.center,
+                            //               children: [
+                            //                 Container(
+                            //                   decoration: BoxDecoration(
+                            //                       border: Border.all(
+                            //                           color: Colors.black, width: 1)),
+                            //                   child: Image.asset(
+                            //                     "images/field.gif",
+                            //                   ),
+                            //                 ),
+                            //                 RichText(
+                            //                   textAlign: TextAlign.end,
+                            //                   text: TextSpan(children: <TextSpan>[
+                            //                     TextSpan(
+                            //                         text:
+                            //                             "\nThe beginning is always today\n\n",
+                            //                         style: GoogleFonts.pressStart2p(
+                            //                             color: primary3, fontSize: 20)),
+                            //                     TextSpan(
+                            //                         text: "-Mary Shelley",
+                            //                         style: GoogleFonts.pressStart2p(
+                            //                             fontSize: 10,
+                            //                             color: Colors.black,
+                            //                             fontWeight: FontWeight.bold)),
+                            //                   ]),
+                            //                 ),
+                            //               ])
+                            //         ])))
+                            )))));
   }
 }
