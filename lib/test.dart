@@ -18,6 +18,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:math';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
+import 'package:expansion_tile_card/expansion_tile_card.dart';
 
 class Node {
   final int id;
@@ -164,15 +165,18 @@ class _Test extends State<Test> {
 
   bool _loadingVisible = false;
 
-  // Color backgroundColor = const Color.fromRGBO(252, 231, 200, 1);
-  // Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
-  // Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
-  // Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
+  Color backgroundColor = const Color.fromRGBO(252, 231, 200, 1);
+  Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
+  Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
+  Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
 
-  Color backgroundColor = const Color.fromARGB(255, 78, 62, 110);
-  Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
-  Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
-  Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
+  // Color backgroundColor = const Color.fromARGB(255, 78, 62, 110);
+  // Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
+  // Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
+  // Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
+
+  ScrollController bottomDisplayScrollController1 = ScrollController();
+  ScrollController bottomDisplayScrollController2 = ScrollController();
 
   var database;
 
@@ -432,6 +436,18 @@ class _Test extends State<Test> {
     });
   }
 
+  void resetSubmission() {
+    setState(() {
+      mainNodeTextController.text = "";
+      auxiliaryNodeTextControllerList = [
+        TextEditingController(),
+        TextEditingController(),
+        TextEditingController(),
+      ];
+      auxiliaryNodeSelectedList = [false, false, false];
+    });
+  }
+
   void createNode() {
     // final int id;
     // String nodeTerm;
@@ -577,6 +593,216 @@ class _Test extends State<Test> {
                             child: Text(term)))))
           ],
         ));
+  }
+
+  /*
+  * Constellation Submission Component
+  */
+  Widget constellationSubmissionComponent() {
+    return Expanded(
+        child: Container(
+            decoration: BoxDecoration(color: backgroundColor),
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: ListView(
+              controller: addNodeController,
+              children: [
+                Row(
+                  children: [
+                    Spacer(),
+                    TextButton(
+                        onPressed: () {
+                          createNode();
+                        },
+                        child: Text("Create Constellation"))
+                  ],
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 15, vertical: 2),
+                  decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      border: Border(
+                          left: BorderSide(width: 1, color: Colors.black),
+                          right: BorderSide(width: 1, color: Colors.black),
+                          top: BorderSide(width: 1, color: Colors.black))),
+                  child: Row(
+                    children: [
+                      const Text(
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 20),
+                          "Main Node"),
+                      Spacer(),
+                      IconButton(
+                          onPressed: () {
+                            resetSubmission();
+                          },
+                          icon: Icon(Icons.undo)),
+                    ],
+                  ),
+                ),
+                Container(
+                  child: Row(
+                    children: [
+                      Expanded(
+                          child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border:
+                                    Border.all(width: 1, color: Colors.black),
+                              ),
+                              child: TextField(
+                                controller: mainNodeTextController,
+                                decoration: const InputDecoration(
+                                  hintText:
+                                      'Ex: The Senate under the Roman Empire',
+                                  contentPadding: EdgeInsets.all(10.0),
+                                ),
+                                minLines: 8,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.next,
+                                maxLines: 8,
+                              ))),
+                    ],
+                  ),
+                ),
+                Container(
+                    margin: EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        border: Border.all(width: 1, color: Colors.black)),
+                    padding: EdgeInsets.all(10),
+                    child: IconButton(
+                        onPressed: () {
+                          formatMainNodeText();
+                        },
+                        icon: Icon(Icons.rebase_edit))),
+                SizedBox(height: 10),
+                Row(children: [
+                  Text(style: TextStyle(fontSize: 18), "Auxiliary Nodes"),
+                  Spacer(),
+                  Container(
+                      height: 30,
+                      width: 30,
+                      child:
+                          auxiliaryNodeSelectedList.where((e) => e).isNotEmpty
+                              ? IconButton(
+                                  padding: EdgeInsets.zero,
+                                  onPressed: () {
+                                    removeAuxiliaryNodeInput();
+                                  },
+                                  icon: Icon(Icons.delete))
+                              : SizedBox())
+                ]),
+                SizedBox(height: 5),
+                ReorderableListView(
+                  shrinkWrap: true,
+                  physics: ClampingScrollPhysics(),
+                  padding: const EdgeInsets.only(right: 10),
+                  proxyDecorator: proxyDecorator,
+                  onReorder: (int oldIndex, int newIndex) {
+                    setState(() {
+                      if (oldIndex < newIndex) {
+                        newIndex -= 1;
+                      }
+                      final TextEditingController item =
+                          auxiliaryNodeTextControllerList.removeAt(oldIndex);
+                      final bool item1 =
+                          auxiliaryNodeSelectedList.removeAt(oldIndex);
+
+                      auxiliaryNodeTextControllerList.insert(newIndex, item);
+                      auxiliaryNodeSelectedList.insert(newIndex, item1);
+                      selectedAuxiliaryNodeInput = newIndex;
+                    });
+                  },
+                  children: auxiliaryNodeTextControllerList
+                      .asMap()
+                      .map((i, e) => MapEntry(i, auxiliaryNodeInput(i)))
+                      .values
+                      .toList(),
+                ),
+                IconButton(
+                  style: const ButtonStyle(
+                      shape:
+                          WidgetStatePropertyAll(ContinuousRectangleBorder())),
+                  icon: Icon(Icons.add),
+                  onPressed: () {
+                    setState(() {
+                      auxiliaryNodeTextControllerList
+                          .add(TextEditingController());
+                      auxiliaryNodeSelectedList.add(false);
+                    });
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+            )));
+  }
+
+  Widget bottomScrollDisplay(
+      BuildContext context, ScrollController controller) {
+    int minIndex = mainNode.id - 7;
+    int maxIndex =
+        mainNode.id + (MediaQuery.sizeOf(context).width > 820 ? 9 : 8);
+
+    List<Node> nodeListSlice = [];
+    List<int> nodeTrack = [];
+    for (int i = minIndex; i < maxIndex; i++) {
+      nodeListSlice.add(nodeList[i % nodeList.length]);
+
+      if (i == mainNode.id - 1) {
+        nodeTrack.add(0);
+      } else if (i < mainNode.id - 1) {
+        if (i < 0) {
+          nodeTrack.add(-1);
+        } else {
+          nodeTrack.add(1);
+        }
+      } else {
+        if (i >= nodeList.length) {
+          nodeTrack.add(-1);
+        } else {
+          nodeTrack.add(1);
+        }
+      }
+    }
+
+    return GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: MediaQuery.sizeOf(context).width > 820 ? 4 : 3,
+          childAspectRatio: 1.0,
+          crossAxisSpacing: 15,
+          mainAxisSpacing: 15,
+          mainAxisExtent: 120,
+        ),
+        itemCount: nodeListSlice.length,
+        shrinkWrap: true,
+        controller: bottomDisplayScrollController1,
+        itemBuilder: (BuildContext context, int index) {
+          return Stack(children: [
+            Container(
+              decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 255, 255, 255),
+                  border: Border.all(
+                      width: nodeTrack[index] == 0 ? 3 : 1,
+                      color: Colors.black)),
+              padding: EdgeInsets.all(10),
+              child: Center(
+                  child: Text(nodeListSlice[index].nodeTerm,
+                      style: TextStyle(fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2)),
+            ),
+            Container(
+              color: Color.fromARGB(nodeTrack[index] >= 0 ? 0 : 80, 0, 0, 0),
+            ),
+          ]);
+        });
+  }
+
+  void setBottomDisplayScrollPosition() {
+    setState(() {
+      bottomDisplayScrollController1 = ScrollController(
+          initialScrollOffset:
+              MediaQuery.sizeOf(context).width > 700 ? 335 : 510);
+    });
   }
 
   @override
@@ -927,224 +1153,20 @@ class _Test extends State<Test> {
                                     ],
                                   )),
                               editingMode
-                                  ? Expanded(
+                                  ? constellationSubmissionComponent()
+                                  : Expanded(
+                                      //if main node does not have any auxiliary nodes
                                       child: Container(
+                                          padding: EdgeInsets.all(20),
+                                          alignment: Alignment.bottomCenter,
                                           decoration: BoxDecoration(
                                               color: backgroundColor),
-                                          padding: EdgeInsets.symmetric(
-                                              horizontal: 20),
-                                          child: ListView(
-                                            controller: addNodeController,
-                                            children: [
-                                              SizedBox(height: 20),
-                                              Row(
-                                                children: [
-                                                  const Text(
-                                                      style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 20),
-                                                      "Main Node"),
-                                                  Spacer(),
-                                                  TextButton(
-                                                      onPressed: () {
-                                                        createNode();
-                                                      },
-                                                      child: Text(
-                                                          "Create Constellation"))
-                                                ],
-                                              ),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                      child: Container(
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: Colors.white,
-                                                            border: Border.all(
-                                                                width: 1,
-                                                                color: Colors
-                                                                    .black),
-                                                          ),
-                                                          child: TextField(
-                                                            controller:
-                                                                mainNodeTextController,
-                                                            decoration:
-                                                                const InputDecoration(
-                                                              hintText:
-                                                                  'Ex: The Senate under the Roman Empire',
-                                                              contentPadding:
-                                                                  EdgeInsets
-                                                                      .all(
-                                                                          10.0),
-                                                            ),
-                                                            minLines: 8,
-                                                            keyboardType:
-                                                                TextInputType
-                                                                    .multiline,
-                                                            textInputAction:
-                                                                TextInputAction
-                                                                    .next,
-                                                            maxLines: 8,
-                                                          ))),
-                                                  Column(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .spaceBetween,
-                                                    children: [
-                                                      Container(
-                                                          margin:
-                                                              EdgeInsets.all(
-                                                                  10),
-                                                          decoration: BoxDecoration(
-                                                              border: Border.all(
-                                                                  width: 1,
-                                                                  color: Colors
-                                                                      .black)),
-                                                          padding:
-                                                              EdgeInsets.all(
-                                                                  10),
-                                                          child: IconButton(
-                                                              onPressed: () {
-                                                                formatMainNodeText();
-                                                              },
-                                                              icon: Icon(Icons
-                                                                  .rebase_edit))),
-                                                      Container(
-                                                          height: 134,
-                                                          margin:
-                                                              EdgeInsets.only(
-                                                                  bottom: 10),
-                                                          decoration: BoxDecoration(
-                                                              border: Border.all(
-                                                                  width: 1,
-                                                                  color: Colors
-                                                                      .black)),
-                                                          padding:
-                                                              EdgeInsets.all(
-                                                                  10),
-                                                          child: IconButton(
-                                                              onPressed: () {
-                                                                setState(() {
-                                                                  mainNodeTextController
-                                                                      .text = "";
-                                                                  auxiliaryNodeTextControllerList =
-                                                                      [
-                                                                    TextEditingController(),
-                                                                    TextEditingController(),
-                                                                    TextEditingController(),
-                                                                  ];
-                                                                  auxiliaryNodeSelectedList =
-                                                                      [
-                                                                    false,
-                                                                    false,
-                                                                    false
-                                                                  ];
-                                                                });
-                                                              },
-                                                              icon: Icon(Icons
-                                                                  .restart_alt)))
-                                                    ],
-                                                  )
-                                                ],
-                                              ),
-                                              SizedBox(height: 10),
-                                              Row(children: [
-                                                Text(
-                                                    style:
-                                                        TextStyle(fontSize: 18),
-                                                    "Auxiliary Nodes"),
-                                                Spacer(),
-                                                Container(
-                                                    height: 30,
-                                                    width: 30,
-                                                    child:
-                                                        auxiliaryNodeSelectedList
-                                                                .where((e) => e)
-                                                                .isNotEmpty
-                                                            ? IconButton(
-                                                                padding:
-                                                                    EdgeInsets
-                                                                        .zero,
-                                                                onPressed: () {
-                                                                  removeAuxiliaryNodeInput();
-                                                                },
-                                                                icon: Icon(Icons
-                                                                    .delete))
-                                                            : SizedBox())
-                                              ]),
-                                              SizedBox(height: 5),
-                                              ReorderableListView(
-                                                shrinkWrap: true,
-                                                physics:
-                                                    ClampingScrollPhysics(),
-                                                padding: const EdgeInsets.only(
-                                                    right: 10),
-                                                proxyDecorator: proxyDecorator,
-                                                onReorder: (int oldIndex,
-                                                    int newIndex) {
-                                                  setState(() {
-                                                    if (oldIndex < newIndex) {
-                                                      newIndex -= 1;
-                                                    }
-                                                    final TextEditingController
-                                                        item =
-                                                        auxiliaryNodeTextControllerList
-                                                            .removeAt(oldIndex);
-                                                    final bool item1 =
-                                                        auxiliaryNodeSelectedList
-                                                            .removeAt(oldIndex);
-
-                                                    auxiliaryNodeTextControllerList
-                                                        .insert(newIndex, item);
-                                                    auxiliaryNodeSelectedList
-                                                        .insert(
-                                                            newIndex, item1);
-                                                    selectedAuxiliaryNodeInput =
-                                                        newIndex;
-                                                  });
-                                                },
-                                                children:
-                                                    auxiliaryNodeTextControllerList
-                                                        .asMap()
-                                                        .map((i, e) => MapEntry(
-                                                            i,
-                                                            auxiliaryNodeInput(
-                                                                i)))
-                                                        .values
-                                                        .toList(),
-                                              ),
-                                              IconButton(
-                                                style: const ButtonStyle(
-                                                    shape: WidgetStatePropertyAll(
-                                                        ContinuousRectangleBorder())),
-                                                icon: Icon(Icons.add),
-                                                onPressed: () {
-                                                  setState(() {
-                                                    auxiliaryNodeTextControllerList
-                                                        .add(
-                                                            TextEditingController());
-                                                    auxiliaryNodeSelectedList
-                                                        .add(false);
-                                                  });
-                                                },
-                                              ),
-                                              const SizedBox(height: 20),
-                                            ],
-                                          )))
-                                  : mainNode.auxiliaries.isEmpty
-                                      ? Expanded(
-                                          //if main node does not have any auxiliary nodes
-                                          child: Container(
-                                              padding: EdgeInsets.all(20),
-                                              alignment: Alignment.bottomCenter,
-                                              decoration: BoxDecoration(
-                                                  color: backgroundColor),
-                                              child: Column(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.end,
-                                                  children: [
-                                                    Expanded(
+                                          child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                mainNode.auxiliaries.isEmpty
+                                                    ? Expanded(
                                                         child: MouseRegion(
                                                             onEnter: (details) =>
                                                                 setState(() =>
@@ -1165,17 +1187,17 @@ class _Test extends State<Test> {
                                                                           EdgeInsets.all(
                                                                               40),
                                                                       decoration: BoxDecoration(
-                                                                          border: Border.all(width: 1, color: Colors.black),
-                                                                          boxShadow: const [
-                                                                            BoxShadow(
-                                                                              color: const Color.fromARGB(255, 0, 0, 0),
-                                                                              blurRadius: 0,
-                                                                              offset: Offset(6, 6),
-                                                                              spreadRadius: 1,
-                                                                            )
-                                                                          ],
-                                                                          color: Colors.white),
-                                                                      child: Text(style: TextStyle(fontSize: mainNode.nodeTerm.length > 150 ? 24 : 30), mainNode.nodeTerm))),
+                                                                          border: Border.all(
+                                                                              width:
+                                                                                  1,
+                                                                              color: Colors
+                                                                                  .black),
+                                                                          color: Colors
+                                                                              .white),
+                                                                      child: Text(
+                                                                          style:
+                                                                              TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 24 : 30),
+                                                                          mainNode.nodeTerm))),
                                                                   Container(
                                                                       color: Colors
                                                                           .transparent,
@@ -1207,350 +1229,256 @@ class _Test extends State<Test> {
                                                                               : SizedBox()
                                                                         ],
                                                                       )),
-                                                                ]))),
-                                                    Container(
-                                                        margin: const EdgeInsets
-                                                            .only(top: 20),
+                                                                ])))
+                                                    : Expanded(
                                                         child: Row(
-                                                          children: [
-                                                            Container(
-                                                                decoration: BoxDecoration(
-                                                                    border: Border.all(
-                                                                        width:
-                                                                            1,
-                                                                        color: Colors
-                                                                            .black),
-                                                                    shape: BoxShape
-                                                                        .circle,
-                                                                    color: Colors
-                                                                        .white),
+                                                        children: [
+                                                          Column(children: [
+                                                            Expanded(
                                                                 child:
-                                                                    IconButton(
-                                                                        color: Colors
-                                                                            .white,
-                                                                        onPressed:
-                                                                            () {
-                                                                          int setIndex =
-                                                                              mainNode.id;
-                                                                          if (setIndex ==
-                                                                              1) {
-                                                                            setIndex =
-                                                                                nodeList.last.id;
-                                                                          } else {
-                                                                            setIndex--;
-                                                                          }
-                                                                          setState(
-                                                                              () {
-                                                                            mainNode =
-                                                                                nodeList[setIndex - 1];
-                                                                          });
-                                                                        },
-                                                                        icon: const Icon(
-                                                                            color:
-                                                                                Colors.black,
-                                                                            Icons.arrow_left))),
-                                                            Spacer(),
-                                                            Text(
-                                                                "${mainNode.id}/${nodeList.length}"),
-                                                            Spacer(),
-                                                            Container(
-                                                                decoration: BoxDecoration(
-                                                                    border: Border.all(
-                                                                        width:
-                                                                            1,
-                                                                        color: Colors
-                                                                            .black),
-                                                                    shape: BoxShape
-                                                                        .circle,
-                                                                    color: Colors
-                                                                        .white),
-                                                                child:
-                                                                    IconButton(
-                                                                        color: Colors
-                                                                            .white,
-                                                                        onPressed:
-                                                                            () {
-                                                                          int setIndex =
-                                                                              mainNode.id;
-                                                                          if (setIndex ==
-                                                                              nodeList.last.id) {
-                                                                            setIndex =
-                                                                                1;
-                                                                          } else {
-                                                                            setIndex++;
-                                                                          }
-                                                                          setState(
-                                                                              () {
-                                                                            mainNode =
-                                                                                nodeList[setIndex - 1];
-                                                                          });
-                                                                        },
-                                                                        icon: const Icon(
-                                                                            color:
-                                                                                Colors.black,
-                                                                            Icons.arrow_right)))
-                                                          ],
-                                                        ))
-                                                  ])))
-                                      : Expanded(
-                                          child: Container(
-                                              padding: EdgeInsets.all(20),
-                                              decoration: BoxDecoration(
-                                                  color: backgroundColor),
-                                              child: Column(children: [
-                                                Expanded(
-                                                    child: Row(
-                                                  children: [
-                                                    Column(children: [
-                                                      Expanded(
-                                                          child: MouseRegion(
-                                                        onEnter: (details) =>
-                                                            setState(() =>
+                                                                    MouseRegion(
+                                                              onEnter: (details) =>
+                                                                  setState(() =>
+                                                                      mainNodeHover =
+                                                                          true),
+                                                              onExit:
+                                                                  (details) =>
+                                                                      setState(
+                                                                          () {
                                                                 mainNodeHover =
-                                                                    true),
-                                                        onExit: (details) =>
-                                                            setState(() {
-                                                          mainNodeHover = false;
-                                                        }),
-                                                        child: Container(
-                                                            constraints: BoxConstraints(
-                                                                minWidth: MediaQuery.sizeOf(context)
-                                                                            .width <
-                                                                        900
-                                                                    ? MediaQuery.sizeOf(context)
-                                                                            .width /
-                                                                        2
-                                                                    : MediaQuery.sizeOf(context)
-                                                                            .width /
-                                                                        2.5,
-                                                                maxWidth: MediaQuery.sizeOf(context)
-                                                                            .width <
-                                                                        900
-                                                                    ? MediaQuery.sizeOf(context)
-                                                                            .width /
-                                                                        2
-                                                                    : MediaQuery.sizeOf(context)
-                                                                            .width /
-                                                                        2.5),
-                                                            padding:
-                                                                EdgeInsets.only(
-                                                              right: 20,
-                                                            ),
-                                                            child: Stack(
-                                                                children: [
-                                                                  (
-                                                                      // Main node card
-                                                                      Container(
-                                                                          decoration:
-                                                                              BoxDecoration(
-                                                                            border:
-                                                                                Border.all(width: 1, color: Colors.black),
-                                                                            color:
-                                                                                Colors.white,
-                                                                            boxShadow: const [
-                                                                              BoxShadow(
-                                                                                color: const Color.fromARGB(255, 0, 0, 0),
-                                                                                blurRadius: 0,
-                                                                                offset: Offset(6, 6),
-                                                                                spreadRadius: 1,
-                                                                              )
-                                                                            ],
-                                                                          ),
-                                                                          alignment: Alignment
-                                                                              .center,
-                                                                          child: Container(
-                                                                              padding: EdgeInsets.all(15),
-                                                                              child: Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25))))),
-                                                                  Container(
-                                                                      color: Color
-                                                                          .fromARGB(
-                                                                              0,
-                                                                              0,
-                                                                              0,
-                                                                              0),
-                                                                      padding:
-                                                                          EdgeInsets.all(
-                                                                              8),
-                                                                      child:
-                                                                          Row(
-                                                                        mainAxisAlignment:
-                                                                            MainAxisAlignment.end,
-                                                                        children: [
-                                                                          IconButton(
-                                                                              onPressed: () {},
-                                                                              constraints: BoxConstraints(),
-                                                                              style: const ButtonStyle(
-                                                                                overlayColor: WidgetStatePropertyAll(Colors.transparent),
-                                                                              ),
-                                                                              padding: EdgeInsets.zero,
-                                                                              icon: Icon(color: Color(int.parse(mainNode.color.split('(0x')[1].split(')')[0], radix: 16)), Icons.circle)),
-                                                                          Spacer(),
-                                                                          mainNodeHover
-                                                                              ? IconButton(
-                                                                                  constraints: BoxConstraints(),
-                                                                                  style: const ButtonStyle(overlayColor: WidgetStatePropertyAll(Color.fromARGB(0, 0, 0, 0)), shape: WidgetStatePropertyAll(ContinuousRectangleBorder())),
-                                                                                  padding: EdgeInsets.zero,
-                                                                                  icon: Icon(Icons.edit),
-                                                                                  onPressed: () {},
-                                                                                )
-                                                                              : SizedBox()
-                                                                        ],
-                                                                      )),
-                                                                ])),
-                                                      ))
-                                                    ]),
-                                                    Expanded(
-                                                        child: ListView(
-                                                      children: [
-                                                        Container(
+                                                                    false;
+                                                              }),
+                                                              child: Container(
+                                                                  constraints: BoxConstraints(
+                                                                      minWidth: MediaQuery.sizeOf(context).width <
+                                                                              900
+                                                                          ? MediaQuery.sizeOf(context).width /
+                                                                              2
+                                                                          : MediaQuery.sizeOf(context).width /
+                                                                              2.5,
+                                                                      maxWidth: MediaQuery.sizeOf(context).width <
+                                                                              900
+                                                                          ? MediaQuery.sizeOf(context).width /
+                                                                              2
+                                                                          : MediaQuery.sizeOf(context).width /
+                                                                              2.5),
+                                                                  padding:
+                                                                      EdgeInsets
+                                                                          .only(
+                                                                    right: 20,
+                                                                  ),
+                                                                  child: Stack(
+                                                                      children: [
+                                                                        (
+                                                                            // Main node card
+                                                                            Container(
+                                                                                decoration: BoxDecoration(
+                                                                                  border: Border.all(width: 1, color: Colors.black),
+                                                                                  color: Colors.white,
+                                                                                  boxShadow: const [
+                                                                                    BoxShadow(
+                                                                                      color: const Color.fromARGB(255, 0, 0, 0),
+                                                                                      blurRadius: 0,
+                                                                                      offset: Offset(6, 6),
+                                                                                      spreadRadius: 1,
+                                                                                    )
+                                                                                  ],
+                                                                                ),
+                                                                                alignment: Alignment.center,
+                                                                                child: Container(padding: EdgeInsets.all(15), child: Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25))))),
+                                                                        Container(
+                                                                            color: Color.fromARGB(
+                                                                                0,
+                                                                                0,
+                                                                                0,
+                                                                                0),
+                                                                            padding:
+                                                                                EdgeInsets.all(8),
+                                                                            child: Row(
+                                                                              mainAxisAlignment: MainAxisAlignment.end,
+                                                                              children: [
+                                                                                IconButton(
+                                                                                    onPressed: () {},
+                                                                                    constraints: BoxConstraints(),
+                                                                                    style: const ButtonStyle(
+                                                                                      overlayColor: WidgetStatePropertyAll(Colors.transparent),
+                                                                                    ),
+                                                                                    padding: EdgeInsets.zero,
+                                                                                    icon: Icon(color: Color(int.parse(mainNode.color.split('(0x')[1].split(')')[0], radix: 16)), Icons.circle)),
+                                                                                Spacer(),
+                                                                                mainNodeHover
+                                                                                    ? IconButton(
+                                                                                        constraints: BoxConstraints(),
+                                                                                        style: const ButtonStyle(overlayColor: WidgetStatePropertyAll(Color.fromARGB(0, 0, 0, 0)), shape: WidgetStatePropertyAll(ContinuousRectangleBorder())),
+                                                                                        padding: EdgeInsets.zero,
+                                                                                        icon: Icon(Icons.edit),
+                                                                                        onPressed: () {},
+                                                                                      )
+                                                                                    : SizedBox()
+                                                                              ],
+                                                                            )),
+                                                                      ])),
+                                                            ))
+                                                          ]),
+                                                          Expanded(
+                                                              child: ListView(
+                                                            children: [
+                                                              Container(
+                                                                decoration: BoxDecoration(
+                                                                    border: Border.all(
+                                                                        width:
+                                                                            1,
+                                                                        color: Colors
+                                                                            .black)),
+                                                                padding: EdgeInsets
+                                                                    .only(
+                                                                        left:
+                                                                            10,
+                                                                        top: 10,
+                                                                        bottom:
+                                                                            10),
+                                                                child:
+                                                                    ReorderableListView(
+                                                                        shrinkWrap:
+                                                                            true,
+                                                                        physics:
+                                                                            ClampingScrollPhysics(),
+                                                                        padding: const EdgeInsets
+                                                                            .only(
+                                                                            right:
+                                                                                10),
+                                                                        proxyDecorator:
+                                                                            auxiliaryDisplayProxyDecorator,
+                                                                        onReorder: (int
+                                                                                oldIndex,
+                                                                            int
+                                                                                newIndex) {
+                                                                          setState(
+                                                                              () {
+                                                                            if (oldIndex <
+                                                                                newIndex) {
+                                                                              newIndex -= 1;
+                                                                            }
+
+                                                                            if (oldIndex !=
+                                                                                newIndex) {
+                                                                              String term = mainNode.auxiliaries[oldIndex];
+
+                                                                              mainNode.auxiliaries[oldIndex] = mainNode.auxiliaries[newIndex];
+                                                                              mainNode.auxiliaries[newIndex] = term;
+                                                                            }
+                                                                          });
+                                                                        },
+                                                                        children: mainNode
+                                                                            .auxiliaries
+                                                                            .map((e) =>
+                                                                                auxiliaryDisplay(e))
+                                                                            .toList()),
+                                                              )
+                                                            ],
+                                                          ))
+                                                        ],
+                                                      )),
+                                                SizedBox(height: 20),
+                                                ExpansionTileCard(
+                                                  onExpansionChanged: (value) {
+                                                    setBottomDisplayScrollPosition();
+                                                  },
+                                                  title: Row(
+                                                    children: [
+                                                      Container(
                                                           decoration: BoxDecoration(
                                                               border: Border.all(
                                                                   width: 1,
                                                                   color: Colors
-                                                                      .black)),
-                                                          padding:
-                                                              EdgeInsets.only(
-                                                                  left: 10,
-                                                                  top: 10,
-                                                                  bottom: 10),
-                                                          child:
-                                                              ReorderableListView(
-                                                                  shrinkWrap:
-                                                                      true,
-                                                                  physics:
-                                                                      ClampingScrollPhysics(),
-                                                                  padding:
-                                                                      const EdgeInsets
-                                                                          .only(
-                                                                          right:
-                                                                              10),
-                                                                  proxyDecorator:
-                                                                      auxiliaryDisplayProxyDecorator,
-                                                                  onReorder: (int
-                                                                          oldIndex,
-                                                                      int
-                                                                          newIndex) {
-                                                                    setState(
-                                                                        () {
-                                                                      if (oldIndex <
-                                                                          newIndex) {
-                                                                        newIndex -=
-                                                                            1;
-                                                                      }
-
-                                                                      if (oldIndex !=
-                                                                          newIndex) {
-                                                                        String
-                                                                            term =
-                                                                            mainNode.auxiliaries[oldIndex];
-
-                                                                        mainNode
-                                                                            .auxiliaries[oldIndex] = mainNode
-                                                                                .auxiliaries[
-                                                                            newIndex];
-                                                                        mainNode.auxiliaries[newIndex] =
-                                                                            term;
-                                                                      }
-                                                                    });
-                                                                  },
-                                                                  children: mainNode
-                                                                      .auxiliaries
-                                                                      .map((e) =>
-                                                                          auxiliaryDisplay(
-                                                                              e))
-                                                                      .toList()),
-                                                        )
-                                                      ],
-                                                    ))
-                                                  ],
-                                                )),
-                                                Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                      top: 20,
-                                                    ),
-                                                    child: Row(
-                                                      children: [
-                                                        Container(
-                                                            decoration: BoxDecoration(
-                                                                border: Border.all(
-                                                                    width: 1,
-                                                                    color: Colors
-                                                                        .black),
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                                color: Colors
-                                                                    .white),
-                                                            child: IconButton(
-                                                                color: Colors
-                                                                    .white,
-                                                                onPressed: () {
-                                                                  int setIndex =
-                                                                      mainNode
-                                                                          .id;
-                                                                  if (setIndex ==
-                                                                      1) {
-                                                                    setIndex =
-                                                                        nodeList
-                                                                            .last
-                                                                            .id;
-                                                                  } else {
-                                                                    setIndex--;
-                                                                  }
-                                                                  setState(() {
-                                                                    mainNode = nodeList[
-                                                                        setIndex -
-                                                                            1];
-                                                                  });
-                                                                },
-                                                                icon: const Icon(
-                                                                    color: Colors
-                                                                        .black,
-                                                                    Icons
-                                                                        .arrow_left))),
-                                                        Spacer(),
-                                                        Text(
-                                                            "${mainNode.id}/${nodeList.length}"),
-                                                        Spacer(),
-                                                        Container(
-                                                            decoration: BoxDecoration(
-                                                                border: Border.all(
-                                                                    width: 1,
-                                                                    color: Colors
-                                                                        .black),
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                                color: Colors
-                                                                    .white),
-                                                            child: IconButton(
-                                                                color: Colors
-                                                                    .white,
-                                                                onPressed: () {
-                                                                  int setIndex =
-                                                                      mainNode
-                                                                          .id;
-                                                                  if (setIndex ==
+                                                                      .black),
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              color:
+                                                                  Colors.white),
+                                                          child: IconButton(
+                                                              color:
+                                                                  Colors.white,
+                                                              onPressed: () {
+                                                                int setIndex =
+                                                                    mainNode.id;
+                                                                if (setIndex ==
+                                                                    1) {
+                                                                  setIndex =
                                                                       nodeList
                                                                           .last
-                                                                          .id) {
-                                                                    setIndex =
-                                                                        1;
-                                                                  } else {
-                                                                    setIndex++;
-                                                                  }
-                                                                  setState(() {
-                                                                    mainNode = nodeList[
-                                                                        setIndex -
-                                                                            1];
-                                                                  });
-                                                                },
-                                                                icon: const Icon(
-                                                                    color: Colors
-                                                                        .black,
-                                                                    Icons
-                                                                        .arrow_right)))
-                                                      ],
-                                                    ))
+                                                                          .id;
+                                                                } else {
+                                                                  setIndex--;
+                                                                }
+                                                                setState(() {
+                                                                  mainNode =
+                                                                      nodeList[
+                                                                          setIndex -
+                                                                              1];
+                                                                });
+                                                              },
+                                                              icon: const Icon(
+                                                                  color: Colors
+                                                                      .black,
+                                                                  Icons
+                                                                      .arrow_left))),
+                                                      Spacer(),
+                                                      Text(
+                                                          "${mainNode.id}/${nodeList.length}"),
+                                                      Spacer(),
+                                                      Container(
+                                                          decoration: BoxDecoration(
+                                                              border: Border.all(
+                                                                  width: 1,
+                                                                  color: Colors
+                                                                      .black),
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              color:
+                                                                  Colors.white),
+                                                          child: IconButton(
+                                                              color:
+                                                                  Colors.white,
+                                                              onPressed: () {
+                                                                int setIndex =
+                                                                    mainNode.id;
+                                                                if (setIndex ==
+                                                                    nodeList
+                                                                        .last
+                                                                        .id) {
+                                                                  setIndex = 1;
+                                                                } else {
+                                                                  setIndex++;
+                                                                }
+                                                                setState(() {
+                                                                  mainNode =
+                                                                      nodeList[
+                                                                          setIndex -
+                                                                              1];
+                                                                });
+                                                              },
+                                                              icon: const Icon(
+                                                                  color: Colors
+                                                                      .black,
+                                                                  Icons
+                                                                      .arrow_right)))
+                                                    ],
+                                                  ),
+                                                  children: [
+                                                    Container(
+                                                        padding:
+                                                            EdgeInsets.all(20),
+                                                        height:
+                                                            MediaQuery.sizeOf(
+                                                                        context)
+                                                                    .height -
+                                                                395,
+                                                        child: bottomScrollDisplay(
+                                                            context,
+                                                            bottomDisplayScrollController1))
+                                                  ],
+                                                ),
                                               ])))
                             ])
                             //  Container(

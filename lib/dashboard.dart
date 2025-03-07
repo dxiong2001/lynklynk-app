@@ -131,15 +131,15 @@ class _Dashboard extends State<Dashboard> {
 
   //currently selected set
   int currentlySelectedSet = -1;
-  // Color dashboardColor = const Color.fromRGBO(252, 231, 200, 1);
-  // Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
-  // Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
-  // Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
+  Color dashboardColor = const Color.fromRGBO(252, 231, 200, 1);
+  Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
+  Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
+  Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
 
-  Color dashboardColor = const Color.fromARGB(255, 78, 62, 110);
-  Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
-  Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
-  Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
+  // Color dashboardColor = const Color.fromARGB(255, 78, 62, 110);
+  // Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
+  // Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
+  // Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
 
   Color secondaryColor = const Color.fromARGB(255, 82, 72, 159);
   List<bool> checkboxList = [];
