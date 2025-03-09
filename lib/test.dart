@@ -19,6 +19,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:math';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:expansion_tile_card/expansion_tile_card.dart';
+import 'package:collection/collection.dart';
 
 class Node {
   final int id;
@@ -130,6 +131,7 @@ class _Test extends State<Test> {
 
   //bool for editing mode
   bool editingMode = true;
+  bool editingModeCurrentNode = false;
 
   //main node with default set
   Node mainNode = Node(
@@ -154,6 +156,14 @@ class _Test extends State<Test> {
   ];
 
   List<bool> auxiliaryNodeSelectedList = [false, false, false];
+  List<String> auxiliaryNodePriorEditList = [];
+  Node editingNode = Node(
+      id: 0,
+      nodeTerm: "",
+      auxiliaries: [],
+      color: "",
+      createDate: "",
+      updateDate: "");
 
   //Int index for selected auxiliary node input
   int selectedAuxiliaryNodeInput = -1;
@@ -553,6 +563,85 @@ class _Test extends State<Test> {
     }
   }
 
+// -------------------------------------------------------------------------------------------------------------------------------------
+// Node Edit Functions
+// 1. updateNodeTerm: updates a node (and any relevant auxiliaries) with a new node term
+// 2. removeAuxiliaries: disconnects a node from its auxiliaries
+// 3. editNode: wrapper functions that uses all the above functions to update a node to its most recently edited version
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+  Node updateNodeTerm(Node node, String newNodeTerm) {
+    Node newNode = Node(
+        id: node.id,
+        nodeTerm: newNodeTerm,
+        auxiliaries: node.auxiliaries,
+        color: node.color,
+        createDate: node.createDate,
+        updateDate: node.updateDate);
+
+    //Update node locally
+    nodeList[node.id - 1] = newNode;
+    nodeMap[node.nodeTerm] = newNode;
+
+    updateNode(newNode);
+
+    for (int i = 0; i < node.auxiliaries.length; i++) {
+      Node auxiliaryNode = nodeMap[node.auxiliaries[i]]!;
+      auxiliaryNode
+              .auxiliaries[auxiliaryNode.auxiliaries.indexOf(node.nodeTerm)] =
+          newNodeTerm;
+      nodeList[auxiliaryNode.id - 1] = auxiliaryNode;
+      nodeMap[auxiliaryNode.nodeTerm] = auxiliaryNode;
+      updateNode(auxiliaryNode);
+    }
+
+    return newNode;
+  }
+
+  void removeAuxiliaries(Set<String> auxiliariesToRemove, String nodeTerm) {
+    for (int i = 0; i < auxiliariesToRemove.length; i++) {
+      String auxiliary = auxiliariesToRemove.elementAt(i);
+
+      Node auxiliaryNode = nodeMap[auxiliary]!;
+      auxiliaryNode.auxiliaries.removeWhere((e) => e == nodeTerm);
+      nodeList[auxiliaryNode.id - 1] = auxiliaryNode;
+      nodeMap[auxiliaryNode.nodeTerm] = auxiliaryNode;
+      updateNode(auxiliaryNode);
+    }
+  }
+
+  void editNode() {
+    Node updatedNode = editingNode;
+    if (mainNodeTextController.text == editingNode.nodeTerm) {
+      updatedNode = updateNodeTerm(editingNode, mainNodeTextController.text);
+    }
+    List<String> auxiliaryControllerTextList =
+        auxiliaryNodeTextControllerList.map((e) => e.text).toList();
+    List<String> currentAuxiliaryList = updatedNode.auxiliaries;
+
+    Set<String> currentSet = currentAuxiliaryList.toSet();
+    Set<String> updateSet = auxiliaryControllerTextList.toSet();
+
+    Set<String> auxiliaryUnion = updateSet.intersection(currentSet);
+
+    Set<String> auxiliaryToAdd = updateSet.difference(auxiliaryUnion);
+    Set<String> auxiliaryToRemove = currentSet.difference(auxiliaryUnion);
+
+    updatedNode.auxiliaries = auxiliaryControllerTextList;
+    createAuxiliaries(auxiliaryToAdd, mainNodeTextController.text);
+    removeAuxiliaries(auxiliaryToRemove, mainNodeTextController.text);
+
+    setState(() {
+      updateNode(updatedNode);
+      nodeList[updatedNode.id - 1] = updatedNode;
+      nodeMap[updatedNode.nodeTerm] = updatedNode;
+      mainNode = updatedNode;
+    });
+  }
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------------------------------------------
+
   Widget auxiliaryDisplayProxyDecorator(
       Widget child, int index, Animation<double> animation) {
     return AnimatedBuilder(
@@ -595,9 +684,10 @@ class _Test extends State<Test> {
         ));
   }
 
-  /*
-  * Constellation Submission Component
-  */
+// -------------------------------------------------------------------------------------------------------------------------------------
+// Node Submission Component
+// -------------------------------------------------------------------------------------------------------------------------------------
+
   Widget constellationSubmissionComponent() {
     return Expanded(
         child: Container(
@@ -609,11 +699,18 @@ class _Test extends State<Test> {
                 Row(
                   children: [
                     Spacer(),
-                    TextButton(
-                        onPressed: () {
-                          createNode();
-                        },
-                        child: Text("Create Constellation"))
+                    editingModeCurrentNode
+                        ? TextButton(
+                            onPressed: () {
+                              editNode();
+                              editingMode = false;
+                            },
+                            child: Text("Update Constellation"))
+                        : TextButton(
+                            onPressed: () {
+                              createNode();
+                            },
+                            child: Text("Create Constellation"))
                   ],
                 ),
                 Container(
@@ -738,25 +835,25 @@ class _Test extends State<Test> {
 
   Widget bottomScrollDisplay(
       BuildContext context, ScrollController controller) {
-    int minIndex = mainNode.id - 7;
-    int maxIndex =
-        mainNode.id + (MediaQuery.sizeOf(context).width > 820 ? 9 : 8);
+    bool screenWidthLarger = MediaQuery.sizeOf(context).width > 820;
+    int numRow = screenWidthLarger ? 4 : 3;
 
     List<Node> nodeListSlice = [];
     List<int> nodeTrack = [];
-    for (int i = minIndex; i < maxIndex; i++) {
-      nodeListSlice.add(nodeList[i % nodeList.length]);
 
-      if (i == mainNode.id - 1) {
-        nodeTrack.add(0);
-      } else if (i < mainNode.id - 1) {
-        if (i < 0) {
-          nodeTrack.add(-1);
-        } else {
-          nodeTrack.add(1);
-        }
-      } else {
-        if (i >= nodeList.length) {
+    if (nodeList.length <= 36) {
+      nodeListSlice = nodeList;
+      nodeTrack = List.filled(nodeList.length, 1);
+    } else {
+      int row = (mainNode.id - 1) ~/ numRow;
+      int col = (mainNode.id - 1) % numRow;
+
+      int startIndex = (row - (screenWidthLarger ? 4 : 5)) * numRow;
+      int endIndex = (row + (screenWidthLarger ? 4 : 6)) * numRow;
+
+      for (int i = startIndex; i < endIndex; i++) {
+        nodeListSlice.add(nodeList[i % nodeList.length]);
+        if (i < 0 || i >= nodeList.length) {
           nodeTrack.add(-1);
         } else {
           nodeTrack.add(1);
@@ -766,7 +863,7 @@ class _Test extends State<Test> {
 
     return GridView.builder(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: MediaQuery.sizeOf(context).width > 820 ? 4 : 3,
+          crossAxisCount: screenWidthLarger ? 4 : 3,
           childAspectRatio: 1.0,
           crossAxisSpacing: 15,
           mainAxisSpacing: 15,
@@ -777,22 +874,39 @@ class _Test extends State<Test> {
         controller: bottomDisplayScrollController1,
         itemBuilder: (BuildContext context, int index) {
           return Stack(children: [
-            Container(
-              decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 255, 255, 255),
-                  border: Border.all(
-                      width: nodeTrack[index] == 0 ? 3 : 1,
-                      color: Colors.black)),
-              padding: EdgeInsets.all(10),
-              child: Center(
-                  child: Text(nodeListSlice[index].nodeTerm,
-                      style: TextStyle(fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2)),
-            ),
-            Container(
-              color: Color.fromARGB(nodeTrack[index] >= 0 ? 0 : 80, 0, 0, 0),
-            ),
+            GestureDetector(
+                onDoubleTap: () {
+                  setState(() {
+                    if (nodeTrack[index] == 0) return;
+                    mainNode = nodeListSlice[index];
+                    bottomDisplayScrollController1.animateTo(
+                      MediaQuery.sizeOf(context).width > 820 ? 540 : 660,
+                      duration: Duration(seconds: 1),
+                      curve: Curves.fastOutSlowIn,
+                    );
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(5),
+                      color: const Color.fromARGB(255, 255, 255, 255),
+                      border: Border.all(
+                          width: nodeListSlice[index].id == mainNode.id ? 3 : 1,
+                          color: Colors.black)),
+                  padding: EdgeInsets.all(10),
+                  child: Center(
+                      child: Text(nodeListSlice[index].nodeTerm,
+                          style: TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2)),
+                )),
+            nodeTrack[index] >= 0
+                ? SizedBox()
+                : Container(
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(5),
+                        color: Color.fromARGB(80, 0, 0, 0)),
+                  ),
           ]);
         });
   }
@@ -801,7 +915,7 @@ class _Test extends State<Test> {
     setState(() {
       bottomDisplayScrollController1 = ScrollController(
           initialScrollOffset:
-              MediaQuery.sizeOf(context).width > 700 ? 335 : 510);
+              MediaQuery.sizeOf(context).width > 820 ? 540 : 660);
     });
   }
 
@@ -909,10 +1023,6 @@ class _Test extends State<Test> {
                                   SizedBox(
                                       width: 20,
                                       height: 20,
-                                      // decoration: BoxDecoration(
-                                      //     borderRadius:
-                                      //         BorderRadius.circular(30),
-                                      //     border: Border.all()),
                                       child: IconButton(
                                         padding: EdgeInsets.zero,
                                         style: IconButton.styleFrom(
@@ -1056,9 +1166,28 @@ class _Test extends State<Test> {
                                                 setState(() {
                                                   if (nodeList.isNotEmpty) {
                                                     editingMode = !editingMode;
+                                                  } else {
+                                                    return;
                                                   }
-                                                  print(nodeList
-                                                      .map((e) => e.toMap()));
+                                                  if (!editingMode) {
+                                                    editingModeCurrentNode =
+                                                        false;
+                                                  }
+                                                  mainNodeTextController =
+                                                      TextEditingController();
+
+                                                  auxiliaryNodeTextControllerList =
+                                                      [
+                                                    TextEditingController(),
+                                                    TextEditingController(),
+                                                    TextEditingController()
+                                                  ];
+
+                                                  auxiliaryNodeSelectedList = [
+                                                    false,
+                                                    false,
+                                                    false
+                                                  ];
                                                 });
                                               },
                                               icon: Icon(
@@ -1113,19 +1242,6 @@ class _Test extends State<Test> {
                                                 },
                                                 leading:
                                                     const Icon(Icons.search),
-                                                // trailing: <Widget>[
-                                                //   Tooltip(
-                                                //     message: 'Change brightness mode',
-                                                //     child: IconButton(
-                                                //       isSelected: true,
-                                                //       onPressed: () {},
-                                                //       icon: const Icon(
-                                                //           Icons.wb_sunny_outlined),
-                                                //       selectedIcon: const Icon(
-                                                //           Icons.brightness_2_outlined),
-                                                //     ),
-                                                //   )
-                                                // ],
                                               );
                                             },
                                             suggestionsBuilder: (BuildContext
@@ -1153,8 +1269,19 @@ class _Test extends State<Test> {
                                     ],
                                   )),
                               editingMode
-                                  ? constellationSubmissionComponent()
-                                  : Expanded(
+                                  ?
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+// Node Submission Dashboard
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+                                  constellationSubmissionComponent()
+                                  :
+// -------------------------------------------------------------------------------------------------------------------------------------
+// Node Flashcard Mode
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+                                  Expanded(
                                       //if main node does not have any auxiliary nodes
                                       child: Container(
                                           padding: EdgeInsets.all(20),
@@ -1224,7 +1351,17 @@ class _Test extends State<Test> {
                                                                                   style: const ButtonStyle(overlayColor: WidgetStatePropertyAll(Color.fromARGB(0, 0, 0, 0)), shape: WidgetStatePropertyAll(ContinuousRectangleBorder())),
                                                                                   padding: EdgeInsets.zero,
                                                                                   icon: Icon(Icons.edit),
-                                                                                  onPressed: () {},
+                                                                                  onPressed: () {
+                                                                                    setState(() {
+                                                                                      editingMode = true;
+                                                                                      editingModeCurrentNode = true;
+                                                                                      editingNode = mainNode;
+                                                                                      auxiliaryNodePriorEditList = mainNode.auxiliaries;
+                                                                                      mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
+                                                                                      auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
+                                                                                      auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
+                                                                                    });
+                                                                                  },
                                                                                 )
                                                                               : SizedBox()
                                                                         ],
@@ -1232,6 +1369,9 @@ class _Test extends State<Test> {
                                                                 ])))
                                                     : Expanded(
                                                         child: Row(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
                                                         children: [
                                                           Column(children: [
                                                             Expanded(
@@ -1312,7 +1452,17 @@ class _Test extends State<Test> {
                                                                                         style: const ButtonStyle(overlayColor: WidgetStatePropertyAll(Color.fromARGB(0, 0, 0, 0)), shape: WidgetStatePropertyAll(ContinuousRectangleBorder())),
                                                                                         padding: EdgeInsets.zero,
                                                                                         icon: Icon(Icons.edit),
-                                                                                        onPressed: () {},
+                                                                                        onPressed: () {
+                                                                                          setState(() {
+                                                                                            editingMode = true;
+                                                                                            editingModeCurrentNode = true;
+                                                                                            editingNode = mainNode;
+                                                                                            auxiliaryNodePriorEditList = mainNode.auxiliaries;
+                                                                                            mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
+                                                                                            auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
+                                                                                            auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
+                                                                                          });
+                                                                                        },
                                                                                       )
                                                                                     : SizedBox()
                                                                               ],
@@ -1321,61 +1471,59 @@ class _Test extends State<Test> {
                                                             ))
                                                           ]),
                                                           Expanded(
-                                                              child: ListView(
-                                                            children: [
-                                                              Container(
-                                                                decoration: BoxDecoration(
-                                                                    border: Border.all(
-                                                                        width:
-                                                                            1,
-                                                                        color: Colors
-                                                                            .black)),
-                                                                padding: EdgeInsets
-                                                                    .only(
-                                                                        left:
-                                                                            10,
-                                                                        top: 10,
-                                                                        bottom:
+                                                              child: Container(
+                                                            decoration: BoxDecoration(
+                                                                border: Border.all(
+                                                                    width: 1,
+                                                                    color: Colors
+                                                                        .black)),
+                                                            padding:
+                                                                EdgeInsets.only(
+                                                                    left: 10,
+                                                                    top: 10,
+                                                                    bottom: 10),
+                                                            child:
+                                                                ReorderableListView(
+                                                                    shrinkWrap:
+                                                                        true,
+                                                                    physics:
+                                                                        ClampingScrollPhysics(),
+                                                                    padding: const EdgeInsets
+                                                                        .only(
+                                                                        right:
                                                                             10),
-                                                                child:
-                                                                    ReorderableListView(
-                                                                        shrinkWrap:
-                                                                            true,
-                                                                        physics:
-                                                                            ClampingScrollPhysics(),
-                                                                        padding: const EdgeInsets
-                                                                            .only(
-                                                                            right:
-                                                                                10),
-                                                                        proxyDecorator:
-                                                                            auxiliaryDisplayProxyDecorator,
-                                                                        onReorder: (int
-                                                                                oldIndex,
-                                                                            int
-                                                                                newIndex) {
-                                                                          setState(
-                                                                              () {
-                                                                            if (oldIndex <
-                                                                                newIndex) {
-                                                                              newIndex -= 1;
-                                                                            }
+                                                                    proxyDecorator:
+                                                                        auxiliaryDisplayProxyDecorator,
+                                                                    onReorder: (int
+                                                                            oldIndex,
+                                                                        int
+                                                                            newIndex) {
+                                                                      setState(
+                                                                          () {
+                                                                        if (oldIndex <
+                                                                            newIndex) {
+                                                                          newIndex -=
+                                                                              1;
+                                                                        }
 
-                                                                            if (oldIndex !=
-                                                                                newIndex) {
-                                                                              String term = mainNode.auxiliaries[oldIndex];
+                                                                        if (oldIndex !=
+                                                                            newIndex) {
+                                                                          String
+                                                                              term =
+                                                                              mainNode.auxiliaries[oldIndex];
 
-                                                                              mainNode.auxiliaries[oldIndex] = mainNode.auxiliaries[newIndex];
-                                                                              mainNode.auxiliaries[newIndex] = term;
-                                                                            }
-                                                                          });
-                                                                        },
-                                                                        children: mainNode
-                                                                            .auxiliaries
-                                                                            .map((e) =>
-                                                                                auxiliaryDisplay(e))
-                                                                            .toList()),
-                                                              )
-                                                            ],
+                                                                          mainNode.auxiliaries[oldIndex] =
+                                                                              mainNode.auxiliaries[newIndex];
+                                                                          mainNode.auxiliaries[newIndex] =
+                                                                              term;
+                                                                        }
+                                                                      });
+                                                                    },
+                                                                    children: mainNode
+                                                                        .auxiliaries
+                                                                        .map((e) =>
+                                                                            auxiliaryDisplay(e))
+                                                                        .toList()),
                                                           ))
                                                         ],
                                                       )),
@@ -1417,6 +1565,21 @@ class _Test extends State<Test> {
                                                                           setIndex -
                                                                               1];
                                                                 });
+
+                                                                bottomDisplayScrollController1
+                                                                    .animateTo(
+                                                                  MediaQuery.sizeOf(context)
+                                                                              .width >
+                                                                          820
+                                                                      ? 540
+                                                                      : 660,
+                                                                  duration:
+                                                                      Duration(
+                                                                          seconds:
+                                                                              2),
+                                                                  curve: Curves
+                                                                      .fastOutSlowIn,
+                                                                );
                                                               },
                                                               icon: const Icon(
                                                                   color: Colors
@@ -1457,6 +1620,20 @@ class _Test extends State<Test> {
                                                                           setIndex -
                                                                               1];
                                                                 });
+                                                                bottomDisplayScrollController1
+                                                                    .animateTo(
+                                                                  MediaQuery.sizeOf(context)
+                                                                              .width >
+                                                                          820
+                                                                      ? 540
+                                                                      : 660,
+                                                                  duration:
+                                                                      Duration(
+                                                                          seconds:
+                                                                              2),
+                                                                  curve: Curves
+                                                                      .fastOutSlowIn,
+                                                                );
                                                               },
                                                               icon: const Icon(
                                                                   color: Colors
@@ -1480,54 +1657,6 @@ class _Test extends State<Test> {
                                                   ],
                                                 ),
                                               ])))
-                            ])
-                            //  Container(
-                            //     decoration: BoxDecoration(color: backgroundColor),
-                            //     child: Container(
-                            //         alignment: Alignment.center,
-                            //         child:
-                            //             Stack(alignment: Alignment.center, children: [
-                            //           Row(
-                            //             children: [
-                            //               Container(
-                            //                   margin: EdgeInsets.only(bottom: 60),
-                            //                   child: IconButton(
-                            //                     icon: Icon(Icons.arrow_back),
-                            //                     onPressed: () {
-                            //                       Navigator.pop(context);
-                            //                     },
-                            //                   ))
-                            //             ],
-                            //           ),
-                            //           Column(
-                            //               mainAxisAlignment: MainAxisAlignment.center,
-                            //               children: [
-                            //                 Container(
-                            //                   decoration: BoxDecoration(
-                            //                       border: Border.all(
-                            //                           color: Colors.black, width: 1)),
-                            //                   child: Image.asset(
-                            //                     "images/field.gif",
-                            //                   ),
-                            //                 ),
-                            //                 RichText(
-                            //                   textAlign: TextAlign.end,
-                            //                   text: TextSpan(children: <TextSpan>[
-                            //                     TextSpan(
-                            //                         text:
-                            //                             "\nThe beginning is always today\n\n",
-                            //                         style: GoogleFonts.pressStart2p(
-                            //                             color: primary3, fontSize: 20)),
-                            //                     TextSpan(
-                            //                         text: "-Mary Shelley",
-                            //                         style: GoogleFonts.pressStart2p(
-                            //                             fontSize: 10,
-                            //                             color: Colors.black,
-                            //                             fontWeight: FontWeight.bold)),
-                            //                   ]),
-                            //                 ),
-                            //               ])
-                            //         ])))
-                            )))));
+                            ]))))));
   }
 }
