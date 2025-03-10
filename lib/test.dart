@@ -20,6 +20,7 @@ import 'dart:math';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:expansion_tile_card/expansion_tile_card.dart';
 import 'package:collection/collection.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
 class Node {
   final int id;
@@ -145,6 +146,14 @@ class _Test extends State<Test> {
   //main node hovering bool
   bool mainNodeHover = false;
 
+  Color nodeMasteryColorDefault = const Color.fromARGB(255, 224, 224, 224);
+  Color nodeMasteryColorKnown = const Color.fromARGB(255, 76, 177, 79);
+  Color nodeMasteryColorPractice = const Color.fromARGB(255, 255, 226, 95);
+  Color nodeMasteryColorDifficult = const Color.fromARGB(255, 241, 68, 56);
+  Color nodeMasteryColorLearned = const Color.fromARGB(255, 0, 140, 255);
+
+  Map<String, Color> nodeMasteryColorMap = {};
+
   //Main node input TextEditingController
   TextEditingController mainNodeTextController = TextEditingController();
 
@@ -195,6 +204,13 @@ class _Test extends State<Test> {
   void initState() {
     constellationID = widget.id;
     constellationName = widget.constellationName;
+    nodeMasteryColorMap = {
+      "New": nodeMasteryColorDefault,
+      "Know Well": nodeMasteryColorKnown,
+      "Need to Practice": nodeMasteryColorPractice,
+      "Difficult": nodeMasteryColorDifficult,
+      "Just Learned": nodeMasteryColorLearned
+    };
     print("---------------------");
 
     _asyncLoadDB();
@@ -294,9 +310,9 @@ class _Test extends State<Test> {
       '"${constellationName}_$constellationID"',
       node.toMap(),
       // Ensure that the file has a matching id.
-      where: 'nodeTerm = ?',
+      where: 'id = ?',
       // Pass the file's id as a whereArg to prevent SQL injection.
-      whereArgs: [node.nodeTerm],
+      whereArgs: [node.id],
     );
 
     updateNodes();
@@ -612,8 +628,9 @@ class _Test extends State<Test> {
 
   void editNode() {
     Node updatedNode = editingNode;
-    if (mainNodeTextController.text == editingNode.nodeTerm) {
+    if (mainNodeTextController.text != editingNode.nodeTerm) {
       updatedNode = updateNodeTerm(editingNode, mainNodeTextController.text);
+      print(mainNodeTextController.text);
     }
     List<String> auxiliaryControllerTextList =
         auxiliaryNodeTextControllerList.map((e) => e.text).toList();
@@ -637,6 +654,107 @@ class _Test extends State<Test> {
       nodeMap[updatedNode.nodeTerm] = updatedNode;
       mainNode = updatedNode;
     });
+  }
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+// Node Mastery Color Functions
+// 1. compareColor: compare two colors
+// 2. colorFromString: get the Color from a color string
+// 3. getNodeMasteryText: get the text for the respective node mastery color
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+  bool compareColor(Color color1, Color color2) {
+    return color1.value == color2.value;
+  }
+
+  Color colorFromString(String color) {
+    return Color(int.parse(color.split('(0x')[1].split(')')[0], radix: 16));
+  }
+
+  String getNodeMasteryText(Color nodeColor) {
+    if (compareColor(nodeMasteryColorDifficult, nodeColor)) {
+      return "Difficult";
+    } else if (compareColor(nodeMasteryColorPractice, nodeColor)) {
+      return "Need to Practice";
+    } else if (compareColor(nodeMasteryColorLearned, nodeColor)) {
+      return "Just Learned";
+    } else if (compareColor(nodeMasteryColorKnown, nodeColor)) {
+      return "Know Well";
+    } else {
+      return "New";
+    }
+  }
+
+  Widget nodeMasterySelectButton() {
+    final List<String> dropDownList = nodeMasteryColorMap.keys.toList();
+    String mainNodeMasteryText =
+        getNodeMasteryText(colorFromString(mainNode.color));
+
+    return DropdownButtonHideUnderline(
+      child: DropdownButton2<String>(
+        customButton: Container(
+            width: 150,
+            padding: EdgeInsets.only(
+                right: max(0, 90 - mainNodeMasteryText.length * 6)),
+            child: Container(
+                padding: EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  border: Border.all(width: 1, color: Colors.black),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                width: 50 + mainNodeMasteryText.length * 10,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      color: colorFromString(mainNode.color),
+                    ),
+                    const SizedBox(
+                      width: 8,
+                    ),
+                    Text(mainNodeMasteryText,
+                        style: const TextStyle(fontSize: 12)),
+                  ],
+                ))),
+        items: dropDownList
+            .map((String item) => DropdownMenuItem<String>(
+                value: item,
+                child: Container(
+                    child: Row(children: [
+                  Icon(Icons.circle, color: nodeMasteryColorMap[item]),
+                  const SizedBox(width: 10),
+                  Text(
+                    item,
+                    style: const TextStyle(
+                      fontSize: 12,
+                    ),
+                  ),
+                ]))))
+            .toList(),
+        value: mainNodeMasteryText,
+        onChanged: (String? value) {
+          setState(() {
+            mainNode.color = nodeMasteryColorMap[value].toString();
+            nodeList[mainNode.id] = mainNode;
+            nodeMap[mainNode.nodeTerm] = mainNode;
+          });
+          updateNode(mainNode);
+        },
+        buttonStyleData: const ButtonStyleData(
+          padding: EdgeInsets.symmetric(horizontal: 10),
+          height: 40,
+          width: 160,
+        ),
+        menuItemStyleData: const MenuItemStyleData(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          height: 40,
+        ),
+      ),
+    );
   }
 
 // -------------------------------------------------------------------------------------------------------------------------------------
@@ -677,6 +795,12 @@ class _Test extends State<Test> {
                         shape: ContinuousRectangleBorder(),
                         color: Colors.white,
                         child: Container(
+                            decoration: BoxDecoration(
+                                border: Border(
+                                    left: BorderSide(
+                                        width: 5,
+                                        color: colorFromString(
+                                            nodeMap[term]!.color)))),
                             margin: EdgeInsets.only(right: 20),
                             padding: EdgeInsets.all(10),
                             child: Text(term)))))
@@ -846,7 +970,6 @@ class _Test extends State<Test> {
       nodeTrack = List.filled(nodeList.length, 1);
     } else {
       int row = (mainNode.id - 1) ~/ numRow;
-      int col = (mainNode.id - 1) % numRow;
 
       int startIndex = (row - (screenWidthLarger ? 4 : 5)) * numRow;
       int endIndex = (row + (screenWidthLarger ? 4 : 6)) * numRow;
@@ -875,15 +998,17 @@ class _Test extends State<Test> {
         itemBuilder: (BuildContext context, int index) {
           return Stack(children: [
             GestureDetector(
-                onDoubleTap: () {
+                onTap: () {
                   setState(() {
                     if (nodeTrack[index] == 0) return;
                     mainNode = nodeListSlice[index];
-                    bottomDisplayScrollController1.animateTo(
-                      MediaQuery.sizeOf(context).width > 820 ? 540 : 660,
-                      duration: Duration(seconds: 1),
-                      curve: Curves.fastOutSlowIn,
-                    );
+                    if (nodeListSlice.length >= 36) {
+                      bottomDisplayScrollController1.animateTo(
+                        MediaQuery.sizeOf(context).width > 820 ? 540 : 660,
+                        duration: Duration(seconds: 1),
+                        curve: Curves.fastOutSlowIn,
+                      );
+                    }
                   });
                 },
                 child: Container(
@@ -1328,42 +1453,39 @@ class _Test extends State<Test> {
                                                                   Container(
                                                                       color: Colors
                                                                           .transparent,
-                                                                      padding:
-                                                                          EdgeInsets.all(
-                                                                              8),
+                                                                      padding: const EdgeInsets
+                                                                          .symmetric(
+                                                                          vertical:
+                                                                              8,
+                                                                          horizontal:
+                                                                              12),
                                                                       child:
                                                                           Row(
                                                                         mainAxisAlignment:
                                                                             MainAxisAlignment.end,
                                                                         children: [
-                                                                          IconButton(
-                                                                              onPressed: () {},
-                                                                              constraints: BoxConstraints(),
-                                                                              style: const ButtonStyle(
-                                                                                overlayColor: WidgetStatePropertyAll(Colors.transparent),
-                                                                              ),
-                                                                              padding: EdgeInsets.zero,
-                                                                              icon: Icon(color: Color(int.parse(mainNode.color.split('(0x')[1].split(')')[0], radix: 16)), Icons.circle)),
+                                                                          nodeMasterySelectButton(),
                                                                           Spacer(),
                                                                           mainNodeHover
-                                                                              ? IconButton(
-                                                                                  constraints: BoxConstraints(),
-                                                                                  style: const ButtonStyle(overlayColor: WidgetStatePropertyAll(Color.fromARGB(0, 0, 0, 0)), shape: WidgetStatePropertyAll(ContinuousRectangleBorder())),
-                                                                                  padding: EdgeInsets.zero,
-                                                                                  icon: Icon(Icons.edit),
-                                                                                  onPressed: () {
-                                                                                    setState(() {
-                                                                                      editingMode = true;
-                                                                                      editingModeCurrentNode = true;
-                                                                                      editingNode = mainNode;
-                                                                                      auxiliaryNodePriorEditList = mainNode.auxiliaries;
-                                                                                      mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                      auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
-                                                                                      auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
-                                                                                    });
-                                                                                  },
-                                                                                )
-                                                                              : SizedBox()
+                                                                              ? Row(children: [
+                                                                                  IconButton(onPressed: () {}, icon: Icon(Icons.delete)),
+                                                                                  SizedBox(width: 10),
+                                                                                  IconButton(
+                                                                                    icon: Icon(Icons.edit),
+                                                                                    onPressed: () {
+                                                                                      setState(() {
+                                                                                        editingMode = true;
+                                                                                        editingModeCurrentNode = true;
+                                                                                        editingNode = mainNode;
+                                                                                        auxiliaryNodePriorEditList = mainNode.auxiliaries;
+                                                                                        mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
+                                                                                        auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
+                                                                                        auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
+                                                                                      });
+                                                                                    },
+                                                                                  )
+                                                                                ])
+                                                                              : SizedBox(height: 40),
                                                                         ],
                                                                       )),
                                                                 ])))
@@ -1433,38 +1555,32 @@ class _Test extends State<Test> {
                                                                                 0,
                                                                                 0),
                                                                             padding:
-                                                                                EdgeInsets.all(8),
+                                                                                const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                                                                             child: Row(
                                                                               mainAxisAlignment: MainAxisAlignment.end,
                                                                               children: [
-                                                                                IconButton(
-                                                                                    onPressed: () {},
-                                                                                    constraints: BoxConstraints(),
-                                                                                    style: const ButtonStyle(
-                                                                                      overlayColor: WidgetStatePropertyAll(Colors.transparent),
-                                                                                    ),
-                                                                                    padding: EdgeInsets.zero,
-                                                                                    icon: Icon(color: Color(int.parse(mainNode.color.split('(0x')[1].split(')')[0], radix: 16)), Icons.circle)),
+                                                                                nodeMasterySelectButton(),
                                                                                 Spacer(),
                                                                                 mainNodeHover
-                                                                                    ? IconButton(
-                                                                                        constraints: BoxConstraints(),
-                                                                                        style: const ButtonStyle(overlayColor: WidgetStatePropertyAll(Color.fromARGB(0, 0, 0, 0)), shape: WidgetStatePropertyAll(ContinuousRectangleBorder())),
-                                                                                        padding: EdgeInsets.zero,
-                                                                                        icon: Icon(Icons.edit),
-                                                                                        onPressed: () {
-                                                                                          setState(() {
-                                                                                            editingMode = true;
-                                                                                            editingModeCurrentNode = true;
-                                                                                            editingNode = mainNode;
-                                                                                            auxiliaryNodePriorEditList = mainNode.auxiliaries;
-                                                                                            mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                            auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
-                                                                                            auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
-                                                                                          });
-                                                                                        },
-                                                                                      )
-                                                                                    : SizedBox()
+                                                                                    ? Row(children: [
+                                                                                        IconButton(onPressed: () {}, icon: Icon(Icons.delete)),
+                                                                                        SizedBox(width: 10),
+                                                                                        IconButton(
+                                                                                          icon: Icon(Icons.edit),
+                                                                                          onPressed: () {
+                                                                                            setState(() {
+                                                                                              editingMode = true;
+                                                                                              editingModeCurrentNode = true;
+                                                                                              editingNode = mainNode;
+                                                                                              auxiliaryNodePriorEditList = mainNode.auxiliaries;
+                                                                                              mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
+                                                                                              auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
+                                                                                              auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
+                                                                                            });
+                                                                                          },
+                                                                                        )
+                                                                                      ])
+                                                                                    : SizedBox(height: 40)
                                                                               ],
                                                                             )),
                                                                       ])),
@@ -1566,20 +1682,22 @@ class _Test extends State<Test> {
                                                                               1];
                                                                 });
 
-                                                                bottomDisplayScrollController1
-                                                                    .animateTo(
-                                                                  MediaQuery.sizeOf(context)
-                                                                              .width >
-                                                                          820
-                                                                      ? 540
-                                                                      : 660,
-                                                                  duration:
-                                                                      Duration(
-                                                                          seconds:
-                                                                              2),
-                                                                  curve: Curves
-                                                                      .fastOutSlowIn,
-                                                                );
+                                                                if (nodeList
+                                                                        .length >=
+                                                                    36) {
+                                                                  bottomDisplayScrollController1
+                                                                      .animateTo(
+                                                                    MediaQuery.sizeOf(context).width >
+                                                                            820
+                                                                        ? 540
+                                                                        : 660,
+                                                                    duration: Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                    curve: Curves
+                                                                        .fastOutSlowIn,
+                                                                  );
+                                                                }
                                                               },
                                                               icon: const Icon(
                                                                   color: Colors
@@ -1620,20 +1738,22 @@ class _Test extends State<Test> {
                                                                           setIndex -
                                                                               1];
                                                                 });
-                                                                bottomDisplayScrollController1
-                                                                    .animateTo(
-                                                                  MediaQuery.sizeOf(context)
-                                                                              .width >
-                                                                          820
-                                                                      ? 540
-                                                                      : 660,
-                                                                  duration:
-                                                                      Duration(
-                                                                          seconds:
-                                                                              2),
-                                                                  curve: Curves
-                                                                      .fastOutSlowIn,
-                                                                );
+                                                                if (nodeList
+                                                                        .length >=
+                                                                    36) {
+                                                                  bottomDisplayScrollController1
+                                                                      .animateTo(
+                                                                    MediaQuery.sizeOf(context).width >
+                                                                            820
+                                                                        ? 540
+                                                                        : 660,
+                                                                    duration: Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                    curve: Curves
+                                                                        .fastOutSlowIn,
+                                                                  );
+                                                                }
                                                               },
                                                               icon: const Icon(
                                                                   color: Colors
