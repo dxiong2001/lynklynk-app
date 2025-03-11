@@ -21,12 +21,15 @@ import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:expansion_tile_card/expansion_tile_card.dart';
 import 'package:collection/collection.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 class Node {
   final int id;
   String nodeTerm;
   List<String> auxiliaries;
   String color;
+  final int image;
   final String createDate;
   String updateDate;
 
@@ -35,6 +38,7 @@ class Node {
       required this.nodeTerm,
       required this.auxiliaries,
       required this.color,
+      required this.image,
       required this.createDate,
       required this.updateDate});
   Map<String, Object?> toMap() {
@@ -43,6 +47,7 @@ class Node {
       'nodeTerm': nodeTerm,
       'auxiliaries': jsonEncode(auxiliaries),
       'color': color,
+      'image': image,
       'createDate': createDate,
       'updateDate': updateDate,
     };
@@ -133,6 +138,7 @@ class _Test extends State<Test> {
   //bool for editing mode
   bool editingMode = true;
   bool editingModeCurrentNode = false;
+  bool editingModeTextUpload = true;
 
   //main node with default set
   Node mainNode = Node(
@@ -140,6 +146,7 @@ class _Test extends State<Test> {
       nodeTerm: "",
       auxiliaries: [],
       color: Colors.black.toString(),
+      image: 0,
       updateDate: DateTime.now().toString(),
       createDate: DateTime.now().toString());
 
@@ -171,6 +178,7 @@ class _Test extends State<Test> {
       nodeTerm: "",
       auxiliaries: [],
       color: "",
+      image: 0,
       createDate: "",
       updateDate: "");
 
@@ -239,12 +247,11 @@ class _Test extends State<Test> {
       onUpgrade: _onUpgrade,
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.
-      version: 1,
+      version: 2,
     );
 
     try {
       List<Node> queryResultsList = await getNodeList();
-      print(queryResultsList);
       if (queryResultsList.isNotEmpty) {
         editingMode = false;
         mainNode = queryResultsList[0];
@@ -253,7 +260,6 @@ class _Test extends State<Test> {
       print(queryResultsList.map((e) => e.id).toList());
       setState(() {
         nodeList = queryResultsList;
-        print(queryResultsList);
         nodeMap = <String, Node>{
           for (Node n in queryResultsList) n.nodeTerm: n
         };
@@ -277,6 +283,7 @@ class _Test extends State<Test> {
             'nodeTerm': nodeTerm as String,
             'auxiliaries': auxiliaries as String,
             'color': color as String,
+            'image': image as int,
             'createDate': createDate as String,
             'updateDate': updateDate as String,
           } in fileMaps)
@@ -285,6 +292,7 @@ class _Test extends State<Test> {
           nodeTerm: nodeTerm,
           auxiliaries: json.decode(auxiliaries).cast<String>().toList(),
           color: color,
+          image: image,
           createDate: createDate,
           updateDate: updateDate,
         )
@@ -515,6 +523,7 @@ class _Test extends State<Test> {
           nodeTerm: nodeTerm,
           auxiliaries: auxiliaries.toList(),
           color: color,
+          image: 0,
           createDate: createDate,
           updateDate: updateDate);
       insertNode(newNode);
@@ -569,6 +578,7 @@ class _Test extends State<Test> {
             nodeTerm: auxTerm,
             auxiliaries: [mainNode],
             color: Color.fromARGB(255, 224, 224, 224).toString(),
+            image: 0,
             createDate: DateTime.now().toString(),
             updateDate: DateTime.now().toString());
         insertNode(newNode);
@@ -592,6 +602,7 @@ class _Test extends State<Test> {
         nodeTerm: newNodeTerm,
         auxiliaries: node.auxiliaries,
         color: node.color,
+        image: 0,
         createDate: node.createDate,
         updateDate: node.updateDate);
 
@@ -821,7 +832,63 @@ class _Test extends State<Test> {
               controller: addNodeController,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
+                    Container(
+                        height: 20,
+                        decoration: const BoxDecoration(
+                            border: Border(
+                                top: BorderSide(width: 1, color: Colors.black),
+                                left: BorderSide(width: 1, color: Colors.black),
+                                right:
+                                    BorderSide(width: 1, color: Colors.black))),
+                        child: TextButton(
+                            style: ButtonStyle(
+                                padding:
+                                    WidgetStatePropertyAll(EdgeInsets.all(2)),
+                                backgroundColor: WidgetStatePropertyAll(
+                                    editingModeTextUpload
+                                        ? Colors.blue
+                                        : Colors.blue.shade800),
+                                shape: WidgetStatePropertyAll(
+                                    ContinuousRectangleBorder())),
+                            onPressed: () {
+                              setState(() {
+                                editingModeTextUpload = true;
+                              });
+                            },
+                            child: const Text("Text",
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)))),
+                    Container(
+                        height: 20,
+                        decoration: const BoxDecoration(
+                            border: Border(
+                                top: BorderSide(width: 1, color: Colors.black),
+                                right:
+                                    BorderSide(width: 1, color: Colors.black))),
+                        child: TextButton(
+                            style: ButtonStyle(
+                                padding:
+                                    WidgetStatePropertyAll(EdgeInsets.all(2)),
+                                backgroundColor: WidgetStatePropertyAll(
+                                    !editingModeTextUpload
+                                        ? Colors.blue
+                                        : Colors.blue.shade800),
+                                shape: WidgetStatePropertyAll(
+                                    ContinuousRectangleBorder())),
+                            onPressed: () {
+                              setState(() {
+                                editingModeTextUpload = false;
+                              });
+                            },
+                            child: const Text("Image",
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)))),
                     Spacer(),
                     editingModeCurrentNode
                         ? TextButton(
@@ -870,18 +937,42 @@ class _Test extends State<Test> {
                                 border:
                                     Border.all(width: 1, color: Colors.black),
                               ),
-                              child: TextField(
-                                controller: mainNodeTextController,
-                                decoration: const InputDecoration(
-                                  hintText:
-                                      'Ex: The Senate under the Roman Empire',
-                                  contentPadding: EdgeInsets.all(10.0),
-                                ),
-                                minLines: 8,
-                                keyboardType: TextInputType.multiline,
-                                textInputAction: TextInputAction.next,
-                                maxLines: 8,
-                              ))),
+                              child: editingModeTextUpload
+                                  ? TextField(
+                                      controller: mainNodeTextController,
+                                      decoration: const InputDecoration(
+                                        hintText:
+                                            'Ex: The Senate under the Roman Empire',
+                                        contentPadding: EdgeInsets.all(10.0),
+                                      ),
+                                      minLines: 8,
+                                      keyboardType: TextInputType.multiline,
+                                      textInputAction: TextInputAction.next,
+                                      maxLines: 8,
+                                    )
+                                  : Container(
+                                      child: IconButton(
+                                          onPressed: () async {
+                                            FilePickerResult? fileUploadResult =
+                                                await FilePicker.platform
+                                                    .pickFiles(
+                                              allowedExtensions: [
+                                                'jpg',
+                                                'png',
+                                              ],
+                                            );
+                                            Directory appDocDir =
+                                                await getApplicationDocumentsDirectory();
+                                            String appDocPath = appDocDir.path;
+                                            Directory directory = await Directory(
+                                                    '$appDocPath/LynkLynkApp/images/${constellationName}_$constellationID')
+                                                .create(recursive: true);
+
+                                            if (fileUploadResult == null) {
+                                              return;
+                                            }
+                                          },
+                                          icon: Icon(Icons.add))))),
                     ],
                   ),
                 ),
@@ -1226,49 +1317,6 @@ class _Test extends State<Test> {
                                               Navigator.pop(context);
                                             },
                                           )),
-                                      const SizedBox(width: 15),
-                                      Container(
-                                          height: 40,
-                                          width: 40,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            border: Border.all(
-                                                color: const Color.fromARGB(
-                                                    255, 0, 0, 0),
-                                                width: 1),
-                                          ),
-                                          child: IconButton(
-                                              padding: EdgeInsets.zero,
-                                              style: const ButtonStyle(
-                                                  shape: WidgetStatePropertyAll(
-                                                      ContinuousRectangleBorder())),
-                                              onPressed: () {
-                                                // saveFile(widget.path);
-                                              },
-                                              icon: const Icon(
-                                                  size: 20, Icons.save_sharp))),
-                                      const SizedBox(width: 15),
-                                      Container(
-                                          height: 40,
-                                          width: 40,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            border: Border.all(
-                                                color: const Color.fromARGB(
-                                                    255, 0, 0, 0),
-                                                width: 1),
-                                          ),
-                                          child: IconButton(
-                                              padding: EdgeInsets.zero,
-                                              style: const ButtonStyle(
-                                                  shape: WidgetStatePropertyAll(
-                                                      ContinuousRectangleBorder())),
-                                              onPressed: () {
-                                                // saveFile(widget.path);
-                                              },
-                                              icon: const Icon(
-                                                  size: 20,
-                                                  Icons.settings_sharp))),
                                       const SizedBox(width: 15),
                                       Container(
                                           height: 40,

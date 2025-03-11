@@ -206,15 +206,15 @@ class _Dashboard extends State<Dashboard> {
       // constructed for each platform.
       join(await getDatabasesPath(), 'lynklynk_node_database.db'),
       // When the database is first created, create a table to store files.
-      onUpgrade: _onUpgrade,
+      onUpgrade: _onUpgradeNodeDB,
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.
-      version: 1,
+      version: 5,
     );
 
     try {
       List<DBFile> queryResultsList = await getDBFileList();
-      print(queryResultsList);
+
       setState(() {
         directoryFiles = queryResultsList;
         updateDirectoryFilesOrdering(directoryFiles);
@@ -269,6 +269,23 @@ class _Dashboard extends State<Dashboard> {
     });
   }
 
+  Future<List<String>> getAllTableNames(Database db) async {
+// you can use your initial name for dbClient
+
+    List<Map> maps =
+        await db.rawQuery('SELECT * FROM sqlite_master ORDER BY name;');
+
+    List<String> tableNameList = [];
+    if (maps.length > 0) {
+      for (int i = 0; i < maps.length; i++) {
+        try {
+          tableNameList.add(maps[i]['name'].toString());
+        } catch (e) {}
+      }
+    }
+    return tableNameList;
+  }
+
   // UPGRADE DATABASE TABLES
   void _onUpgrade(Database db, int oldVersion, int newVersion) {
     try {
@@ -286,6 +303,24 @@ class _Dashboard extends State<Dashboard> {
         db.execute(
             'ALTER TABLE files RENAME COLUMN "fileDirectory" TO filePath');
       }
+      print("Upgrade successful");
+    } catch (e) {
+      print("Upgrade failed: ");
+      print(e);
+    }
+  }
+
+  void _onUpgradeNodeDB(Database db, int oldVersion, int newVersion) async {
+    try {
+      List<String> tableNames = await getAllTableNames(db);
+      print(tableNames);
+      if (oldVersion < 5) {
+        for (int i = 0; i < tableNames.length - 1; i++) {
+          await db.execute(
+              'ALTER TABLE "${tableNames[i]}" ADD COLUMN image INTEGER NOT NULL DEFAULT (0);');
+        }
+      }
+
       print("Upgrade successful");
     } catch (e) {
       print("Upgrade failed: ");
