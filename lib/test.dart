@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -54,6 +55,17 @@ class Node {
   }
 }
 
+class AuxiliaryEntry {
+  TextEditingController controller;
+  int imageMode;
+  bool selected;
+
+  AuxiliaryEntry(
+      {required this.controller,
+      required this.imageMode,
+      required this.selected});
+}
+
 class Test extends StatefulWidget {
   const Test({super.key, required this.constellationName, required this.id});
 
@@ -62,45 +74,6 @@ class Test extends StatefulWidget {
 
   @override
   State<Test> createState() => _Test();
-}
-
-class TabIntent extends Intent {
-  const TabIntent(this.index);
-
-  final int index;
-}
-
-class TabAction extends Action<TabIntent> {
-  TabAction();
-
-  @override
-  void invoke(covariant TabIntent intent) {}
-}
-
-class EnterIntent extends Intent {
-  const EnterIntent(this.index);
-
-  final int index;
-}
-
-class EnterAction extends Action<EnterIntent> {
-  EnterAction();
-
-  @override
-  void invoke(covariant EnterIntent intent) {}
-}
-
-class ArrowIntent extends Intent {
-  const ArrowIntent(this.index);
-
-  final int index;
-}
-
-class ArrowAction extends Action<ArrowIntent> {
-  ArrowAction();
-
-  @override
-  void invoke(covariant ArrowIntent intent) {}
 }
 
 class _Test extends State<Test> {
@@ -139,6 +112,7 @@ class _Test extends State<Test> {
   bool editingMode = true;
   bool editingModeCurrentNode = false;
   bool editingModeTextUpload = true;
+  bool editingModePhotoUploaded = false;
 
   //main node with default set
   Node mainNode = Node(
@@ -165,13 +139,12 @@ class _Test extends State<Test> {
   TextEditingController mainNodeTextController = TextEditingController();
 
   //Auxilary node input TextEditingController list
-  List<TextEditingController> auxiliaryNodeTextControllerList = [
-    TextEditingController(),
-    TextEditingController(),
-    TextEditingController()
-  ];
+  List<AuxiliaryEntry> auxiliaryEntryList = List.generate(
+    3,
+    (e) => AuxiliaryEntry(
+        controller: TextEditingController(), imageMode: -1, selected: false),
+  );
 
-  List<bool> auxiliaryNodeSelectedList = [false, false, false];
   List<String> auxiliaryNodePriorEditList = [];
   Node editingNode = Node(
       id: 0,
@@ -369,13 +342,16 @@ class _Test extends State<Test> {
     });
     int insertIndex = 0;
     for (int i = 1; i < listText.length; i++) {
-      if (insertIndex < auxiliaryNodeTextControllerList.length &&
-          auxiliaryNodeTextControllerList[insertIndex].text.isEmpty) {
-        auxiliaryNodeTextControllerList[insertIndex].text = listText[i];
+      if (insertIndex < auxiliaryEntryList.length &&
+          auxiliaryEntryList[insertIndex].controller.text.isEmpty) {
+        auxiliaryEntryList[insertIndex].controller.text = listText[i];
       } else {
-        auxiliaryNodeTextControllerList.insert(
-            insertIndex, TextEditingController(text: listText[i]));
-        auxiliaryNodeSelectedList.insert(insertIndex, false);
+        auxiliaryEntryList.insert(
+            insertIndex,
+            AuxiliaryEntry(
+                controller: TextEditingController(text: listText[i]),
+                imageMode: -1,
+                selected: false));
       }
       insertIndex++;
     }
@@ -401,7 +377,6 @@ class _Test extends State<Test> {
   }
 
   Widget auxiliaryNodeInput(int index) {
-    TextEditingController controller = auxiliaryNodeTextControllerList[index];
     return Container(
         key: UniqueKey(),
         child: Container(
@@ -413,16 +388,29 @@ class _Test extends State<Test> {
                   padding: EdgeInsets.zero,
                   icon: Icon(
                       size: 10,
-                      auxiliaryNodeSelectedList[index]
+                      auxiliaryEntryList[index].selected
                           ? Icons.circle
                           : Icons.circle_outlined),
                   onPressed: () {
                     setState(() {
-                      auxiliaryNodeSelectedList[index] =
-                          !auxiliaryNodeSelectedList[index];
+                      auxiliaryEntryList[index].selected =
+                          !auxiliaryEntryList[index].selected;
                     });
                   },
                 )),
+                IconButton(
+                    onPressed: () {
+                      setState(() {
+                        auxiliaryEntryList[index].imageMode = max(
+                            -1, (auxiliaryEntryList[index].imageMode * -1) - 1);
+                        if (auxiliaryEntryList[index].imageMode == -1) {
+                          auxiliaryEntryList[index].controller.text = "";
+                        }
+                      });
+                    },
+                    icon: auxiliaryEntryList[index].imageMode >= 0
+                        ? Icon(Icons.photo)
+                        : Icon(Icons.text_fields_sharp)),
                 Expanded(
                   child: Card(
                       // decoration: BoxDecoration(
@@ -430,23 +418,121 @@ class _Test extends State<Test> {
                       child: Row(children: [
                     Expanded(
                         child: Container(
-                            padding: EdgeInsets.only(right: 18),
+                            padding: EdgeInsets.only(right: 32),
                             decoration: BoxDecoration(
                               color: Colors.white,
                             ),
-                            child: TextField(
-                              controller: controller,
-                              keyboardType: TextInputType.multiline,
-                              maxLines: null,
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                errorBorder: InputBorder.none,
-                                disabledBorder: InputBorder.none,
-                                contentPadding: EdgeInsets.all(10.0),
-                              ),
-                            )))
+                            child: Container(
+                                constraints: BoxConstraints(
+                                    minHeight: 50, maxHeight: 400),
+                                child: auxiliaryEntryList[index].imageMode >= 0
+                                    ? auxiliaryEntryList[index].imageMode > 0
+                                        ? Container(
+                                            padding: EdgeInsets.symmetric(
+                                                vertical: 15, horizontal: 15),
+                                            child: Stack(children: [
+                                              Center(
+                                                  child: Image.file(File(
+                                                      auxiliaryEntryList[index]
+                                                          .controller
+                                                          .text))),
+                                              Row(children: [
+                                                Container(
+                                                    padding: EdgeInsets.all(8),
+                                                    child: TextButton(
+                                                        style: const ButtonStyle(
+                                                            backgroundColor:
+                                                                WidgetStatePropertyAll(
+                                                                    Color.fromARGB(
+                                                                        223,
+                                                                        255,
+                                                                        255,
+                                                                        255))),
+                                                        onPressed: () async {
+                                                          FilePickerResult?
+                                                              fileUploadResult =
+                                                              await FilePicker
+                                                                  .platform
+                                                                  .pickFiles(
+                                                            allowedExtensions: [
+                                                              'jpg',
+                                                              'png',
+                                                            ],
+                                                          );
+
+                                                          if (fileUploadResult ==
+                                                              null) {
+                                                            return;
+                                                          }
+
+                                                          setState(() {
+                                                            auxiliaryEntryList[
+                                                                        index]
+                                                                    .controller
+                                                                    .text =
+                                                                fileUploadResult
+                                                                    .files
+                                                                    .single
+                                                                    .path!;
+                                                            auxiliaryEntryList[
+                                                                    index]
+                                                                .imageMode = 1;
+                                                          });
+                                                        },
+                                                        child: Text("Reselect",
+                                                            style: TextStyle(
+                                                                color: Colors
+                                                                    .black,
+                                                                fontSize: 12))))
+                                              ])
+                                            ]))
+                                        : IconButton(
+                                            style: const ButtonStyle(
+                                                shape: WidgetStatePropertyAll(
+                                                    ContinuousRectangleBorder())),
+                                            onPressed: () async {
+                                              FilePickerResult?
+                                                  fileUploadResult =
+                                                  await FilePicker.platform
+                                                      .pickFiles(
+                                                allowedExtensions: [
+                                                  'jpg',
+                                                  'png',
+                                                ],
+                                              );
+
+                                              if (fileUploadResult == null) {
+                                                return;
+                                              }
+
+                                              setState(() {
+                                                auxiliaryEntryList[index]
+                                                        .controller
+                                                        .text =
+                                                    fileUploadResult
+                                                        .files.single.path!;
+                                                auxiliaryEntryList[index]
+                                                    .imageMode = 1;
+                                              });
+                                            },
+                                            icon: const Icon(Icons
+                                                .add_photo_alternate_outlined))
+                                    : TextField(
+                                        controller: auxiliaryEntryList[index]
+                                            .controller,
+                                        keyboardType: TextInputType.multiline,
+                                        textInputAction:
+                                            TextInputAction.newline,
+                                        maxLines: null,
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          focusedBorder: InputBorder.none,
+                                          enabledBorder: InputBorder.none,
+                                          errorBorder: InputBorder.none,
+                                          disabledBorder: InputBorder.none,
+                                          contentPadding: EdgeInsets.all(10.0),
+                                        ),
+                                      ))))
                   ])),
                 )
               ],
@@ -454,35 +540,52 @@ class _Test extends State<Test> {
   }
 
   void removeAuxiliaryNodeInput() {
-    List<TextEditingController> controllerListTemp =
-        auxiliaryNodeTextControllerList;
-    List<bool> boolListTemp = auxiliaryNodeSelectedList;
-    for (int i = 0; i < boolListTemp.length; i++) {
-      if (boolListTemp[i]) {
-        boolListTemp.removeAt(i);
-        controllerListTemp.removeAt(i);
+    List<AuxiliaryEntry> auxiliaryEntryListTemp = auxiliaryEntryList;
+
+    for (int i = 0; i < auxiliaryEntryListTemp.length; i++) {
+      if (auxiliaryEntryListTemp[i].selected) {
+        auxiliaryEntryListTemp.removeAt(i);
         i--;
       }
     }
     setState(() {
-      auxiliaryNodeSelectedList = boolListTemp;
-      auxiliaryNodeTextControllerList = controllerListTemp;
+      auxiliaryEntryList = auxiliaryEntryListTemp;
     });
   }
 
   void resetSubmission() {
     setState(() {
       mainNodeTextController.text = "";
-      auxiliaryNodeTextControllerList = [
-        TextEditingController(),
-        TextEditingController(),
-        TextEditingController(),
-      ];
-      auxiliaryNodeSelectedList = [false, false, false];
+      auxiliaryEntryList = List.generate(
+        3,
+        (e) => AuxiliaryEntry(
+            controller: TextEditingController(),
+            imageMode: -1,
+            selected: false),
+      );
+      editingModePhotoUploaded = false;
     });
   }
 
-  void createNode() {
+  List<AuxiliaryEntry> processList(List<AuxiliaryEntry> l, String mainNode) {
+    l.removeWhere((e) => e.controller.text.isEmpty);
+    l.removeWhere((e) => e.controller.text == mainNode);
+
+    List<String> addedPrior = [];
+    for (int i = 0; i < l.length; i++) {
+      if (addedPrior.contains(l[i].controller.text)) {
+        l.removeAt(i);
+        i--;
+        continue;
+      } else {
+        addedPrior.add(l[i].controller.text);
+      }
+    }
+
+    return l;
+  }
+
+  void createNode() async {
     // final int id;
     // String nodeTerm;
     // List<String> auxiliaries;
@@ -495,18 +598,27 @@ class _Test extends State<Test> {
       print("Term cannot be empty");
       return;
     }
-    Set<String> auxiliaries =
-        auxiliaryNodeTextControllerList.map((e) => e.text).toList().toSet();
-    auxiliaries.removeWhere((e) => e.isEmpty);
-    auxiliaries.removeWhere((e) => e == nodeTerm);
-    print("1");
+
+    if (editingModePhotoUploaded) {
+      nodeTerm = await copyFile(File(nodeTerm));
+    }
+
+    List<AuxiliaryEntry> auxiliaries =
+        processList(auxiliaryEntryList, nodeTerm);
+
+    //add auxiliaries
+    List<String> auxProcessedList =
+        await createAuxiliaries(auxiliaries, nodeTerm);
+
     if (nodeMap[nodeTerm] != null) {
       //term already exists - update
       print("already exists");
       Node currentNode = nodeMap[nodeTerm]!;
       Set<String> currentNodeAux = currentNode.auxiliaries.toSet();
       currentNode.updateDate = DateTime.now().toString();
-      currentNode.auxiliaries = currentNodeAux.union(auxiliaries).toList();
+      currentNode.auxiliaries =
+          currentNodeAux.union(auxProcessedList.toSet()).toList();
+
       setState(() {
         nodeMap[nodeTerm] = currentNode;
       });
@@ -517,28 +629,29 @@ class _Test extends State<Test> {
       String color = Color.fromARGB(255, 224, 224, 224).toString();
       String createDate = DateTime.now().toString();
       String updateDate = DateTime.now().toString();
-
+      print(editingModePhotoUploaded);
       Node newNode = Node(
           id: nodeList.isEmpty ? 1 : nodeList[nodeList.length - 1].id + 1,
           nodeTerm: nodeTerm,
-          auxiliaries: auxiliaries.toList(),
+          auxiliaries: auxProcessedList,
           color: color,
-          image: 0,
+          image: (editingModePhotoUploaded) ? 1 : 0,
           createDate: createDate,
           updateDate: updateDate);
-      insertNode(newNode);
 
+      insertNode(newNode);
       setState(() {
         addNodeLocally(newNode);
+
         mainNode = newNode;
       });
     }
 
-    //add auxiliaries
-    createAuxiliaries(auxiliaries, nodeTerm);
     setState(() {
       editingMode = !editingMode;
     });
+
+    resetSubmission();
   }
 
   void addNodeLocally(Node newNode) {
@@ -563,22 +676,31 @@ class _Test extends State<Test> {
     }
   }
 
-  void createAuxiliaries(Set<String> auxiliaries, String mainNode) {
+  Future<List<String>> createAuxiliaries(
+      List<AuxiliaryEntry> auxiliaries, String mainNode) async {
+    List<String> auxiliaryReturn = [];
     for (int i = 0; i < auxiliaries.length; i++) {
-      String auxTerm = auxiliaries.elementAt(i);
+      String auxTerm = auxiliaries[i].controller.text;
 
       // node already exists
       if (nodeMap.containsKey(auxTerm)) {
-        nodeMap[auxTerm]?.auxiliaries.add(mainNode);
+        List<String> existingAux = nodeMap[auxTerm]!.auxiliaries;
+        if (!existingAux.contains(mainNode)) {
+          nodeMap[auxTerm]!.auxiliaries.add(mainNode);
+        }
       }
       // node does not already exist
       else {
+        if (auxiliaries[i].imageMode == 1) {
+          auxTerm = await copyFile(File(auxiliaryEntryList[i].controller.text));
+        }
+        auxiliaryReturn.add(auxTerm);
         Node newNode = Node(
             id: nodeList[nodeList.length - 1].id + 1,
             nodeTerm: auxTerm,
             auxiliaries: [mainNode],
             color: Color.fromARGB(255, 224, 224, 224).toString(),
-            image: 0,
+            image: auxiliaryEntryList[i].imageMode == 1 ? 1 : 0,
             createDate: DateTime.now().toString(),
             updateDate: DateTime.now().toString());
         insertNode(newNode);
@@ -587,6 +709,7 @@ class _Test extends State<Test> {
         });
       }
     }
+    return auxiliaryReturn;
   }
 
 // -------------------------------------------------------------------------------------------------------------------------------------
@@ -643,20 +766,21 @@ class _Test extends State<Test> {
       updatedNode = updateNodeTerm(editingNode, mainNodeTextController.text);
       print(mainNodeTextController.text);
     }
-    List<String> auxiliaryControllerTextList =
-        auxiliaryNodeTextControllerList.map((e) => e.text).toList();
+    List<AuxiliaryEntry> auxiliaryControllerTextList =
+        processList(auxiliaryEntryList, mainNodeTextController.text);
+    List<String> auxTextList =
+        auxiliaryControllerTextList.map((e) => e.controller.text).toList();
     List<String> currentAuxiliaryList = updatedNode.auxiliaries;
 
     Set<String> currentSet = currentAuxiliaryList.toSet();
-    Set<String> updateSet = auxiliaryControllerTextList.toSet();
+    Set<String> updateSet = auxTextList.toSet();
 
     Set<String> auxiliaryUnion = updateSet.intersection(currentSet);
-
-    Set<String> auxiliaryToAdd = updateSet.difference(auxiliaryUnion);
     Set<String> auxiliaryToRemove = currentSet.difference(auxiliaryUnion);
 
-    updatedNode.auxiliaries = auxiliaryControllerTextList;
-    createAuxiliaries(auxiliaryToAdd, mainNodeTextController.text);
+    updatedNode.auxiliaries = auxTextList;
+
+    createAuxiliaries(auxiliaryControllerTextList, mainNodeTextController.text);
     removeAuxiliaries(auxiliaryToRemove, mainNodeTextController.text);
 
     setState(() {
@@ -822,6 +946,21 @@ class _Test extends State<Test> {
 // -------------------------------------------------------------------------------------------------------------------------------------
 // Node Submission Component
 // -------------------------------------------------------------------------------------------------------------------------------------
+  Future<String> copyFile(File file) async {
+    Directory appDocDir = await getApplicationDocumentsDirectory();
+    String appDocPath = appDocDir.path;
+    Directory directory = await Directory(
+            '$appDocPath/LynkLynkApp/images/${constellationName}_$constellationID')
+        .create(recursive: true);
+
+    mainNodeTextController.text = file.path;
+    var rng = Random();
+    var identifier = rng.nextInt(900000) + 100000;
+
+    File copyFile = await file.copy(
+        "$appDocPath/LynkLynkApp/images/${constellationName}_$constellationID/${constellationName}_${constellationID}_${identifier}_${Path.basename(file.path)}");
+    return copyFile.path;
+  }
 
   Widget constellationSubmissionComponent() {
     return Expanded(
@@ -855,6 +994,8 @@ class _Test extends State<Test> {
                             onPressed: () {
                               setState(() {
                                 editingModeTextUpload = true;
+                                mainNodeTextController.text = "";
+                                editingModePhotoUploaded = false;
                               });
                             },
                             child: const Text("Text",
@@ -895,10 +1036,14 @@ class _Test extends State<Test> {
                             onPressed: () {
                               editNode();
                               editingMode = false;
+                              editingModeTextUpload = true;
+                              resetSubmission();
                             },
                             child: Text("Update Constellation"))
                         : TextButton(
                             onPressed: () {
+                              if (mainNodeTextController.text.isEmpty) return;
+                              editingModeTextUpload = true;
                               createNode();
                             },
                             child: Text("Create Constellation"))
@@ -932,6 +1077,11 @@ class _Test extends State<Test> {
                     children: [
                       Expanded(
                           child: Container(
+                              padding: EdgeInsets.all(10),
+                              constraints: BoxConstraints(
+                                  minHeight: 200,
+                                  maxHeight:
+                                      editingModePhotoUploaded ? 450 : 200),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 border:
@@ -947,32 +1097,85 @@ class _Test extends State<Test> {
                                       ),
                                       minLines: 8,
                                       keyboardType: TextInputType.multiline,
-                                      textInputAction: TextInputAction.next,
+                                      textInputAction: TextInputAction.newline,
                                       maxLines: 8,
                                     )
-                                  : Container(
-                                      child: IconButton(
-                                          onPressed: () async {
-                                            FilePickerResult? fileUploadResult =
-                                                await FilePicker.platform
-                                                    .pickFiles(
-                                              allowedExtensions: [
-                                                'jpg',
-                                                'png',
-                                              ],
-                                            );
-                                            Directory appDocDir =
-                                                await getApplicationDocumentsDirectory();
-                                            String appDocPath = appDocDir.path;
-                                            Directory directory = await Directory(
-                                                    '$appDocPath/LynkLynkApp/images/${constellationName}_$constellationID')
-                                                .create(recursive: true);
+                                  : Center(
+                                      child: editingModePhotoUploaded
+                                          ? Container(
+                                              child: Stack(children: [
+                                              Center(
+                                                  child: Image.file(File(
+                                                      mainNodeTextController
+                                                          .text))),
+                                              Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.end,
+                                                  children: [
+                                                    TextButton(
+                                                        onPressed: () async {
+                                                          FilePickerResult?
+                                                              fileUploadResult =
+                                                              await FilePicker
+                                                                  .platform
+                                                                  .pickFiles(
+                                                            allowedExtensions: [
+                                                              'jpg',
+                                                              'png',
+                                                            ],
+                                                          );
 
-                                            if (fileUploadResult == null) {
-                                              return;
-                                            }
-                                          },
-                                          icon: Icon(Icons.add))))),
+                                                          if (fileUploadResult ==
+                                                              null) {
+                                                            return;
+                                                          }
+
+                                                          setState(() {
+                                                            mainNodeTextController
+                                                                    .text =
+                                                                fileUploadResult
+                                                                    .files
+                                                                    .single
+                                                                    .path!;
+                                                            editingModePhotoUploaded =
+                                                                true;
+                                                          });
+                                                        },
+                                                        child: Text(
+                                                            "Reselect Image"))
+                                                  ])
+                                            ]))
+                                          : Container(
+                                              height: 50,
+                                              width: 50,
+                                              child: IconButton(
+                                                  onPressed: () async {
+                                                    FilePickerResult?
+                                                        fileUploadResult =
+                                                        await FilePicker
+                                                            .platform
+                                                            .pickFiles(
+                                                      allowedExtensions: [
+                                                        'jpg',
+                                                        'png',
+                                                      ],
+                                                    );
+
+                                                    if (fileUploadResult ==
+                                                        null) {
+                                                      return;
+                                                    }
+
+                                                    setState(() {
+                                                      mainNodeTextController
+                                                              .text =
+                                                          fileUploadResult.files
+                                                              .single.path!;
+                                                      editingModePhotoUploaded =
+                                                          true;
+                                                    });
+                                                  },
+                                                  icon: Icon(Icons.add)))))),
                     ],
                   ),
                 ),
@@ -994,7 +1197,7 @@ class _Test extends State<Test> {
                       height: 30,
                       width: 30,
                       child:
-                          auxiliaryNodeSelectedList.where((e) => e).isNotEmpty
+                          auxiliaryEntryList.where((e) => e.selected).isNotEmpty
                               ? IconButton(
                                   padding: EdgeInsets.zero,
                                   onPressed: () {
@@ -1014,17 +1217,14 @@ class _Test extends State<Test> {
                       if (oldIndex < newIndex) {
                         newIndex -= 1;
                       }
-                      final TextEditingController item =
-                          auxiliaryNodeTextControllerList.removeAt(oldIndex);
-                      final bool item1 =
-                          auxiliaryNodeSelectedList.removeAt(oldIndex);
+                      final AuxiliaryEntry item =
+                          auxiliaryEntryList.removeAt(oldIndex);
 
-                      auxiliaryNodeTextControllerList.insert(newIndex, item);
-                      auxiliaryNodeSelectedList.insert(newIndex, item1);
+                      auxiliaryEntryList.insert(newIndex, item);
                       selectedAuxiliaryNodeInput = newIndex;
                     });
                   },
-                  children: auxiliaryNodeTextControllerList
+                  children: auxiliaryEntryList
                       .asMap()
                       .map((i, e) => MapEntry(i, auxiliaryNodeInput(i)))
                       .values
@@ -1037,9 +1237,10 @@ class _Test extends State<Test> {
                   icon: Icon(Icons.add),
                   onPressed: () {
                     setState(() {
-                      auxiliaryNodeTextControllerList
-                          .add(TextEditingController());
-                      auxiliaryNodeSelectedList.add(false);
+                      auxiliaryEntryList.add(AuxiliaryEntry(
+                          controller: TextEditingController(),
+                          imageMode: -1,
+                          selected: false));
                     });
                   },
                 ),
@@ -1138,24 +1339,9 @@ class _Test extends State<Test> {
   @override
   Widget build(BuildContext context) {
     return Shortcuts(
-        shortcuts: <ShortcutActivator, Intent>{
-          LogicalKeySet(LogicalKeyboardKey.tab): const TabIntent(2),
-          LogicalKeySet(LogicalKeyboardKey.shift, LogicalKeyboardKey.tab):
-              const TabIntent(2),
-          LogicalKeySet(LogicalKeyboardKey.enter): const EnterIntent(2),
-          LogicalKeySet(LogicalKeyboardKey.shift, LogicalKeyboardKey.enter):
-              const EnterIntent(2),
-          LogicalKeySet(LogicalKeyboardKey.shift, LogicalKeyboardKey.arrowUp):
-              const ArrowIntent(2),
-          LogicalKeySet(LogicalKeyboardKey.shift, LogicalKeyboardKey.arrowDown):
-              const ArrowIntent(2),
-        },
+        shortcuts: <ShortcutActivator, Intent>{},
         child: Actions(
-            actions: <Type, Action<Intent>>{
-              TabIntent: TabAction(),
-              EnterIntent: EnterAction(),
-              ArrowIntent: ArrowAction(),
-            },
+            actions: <Type, Action<Intent>>{},
             child: Scaffold(
                 appBar: AppBar(
                   scrolledUnderElevation: 0,
@@ -1346,21 +1532,8 @@ class _Test extends State<Test> {
                                                     editingModeCurrentNode =
                                                         false;
                                                   }
-                                                  mainNodeTextController =
-                                                      TextEditingController();
 
-                                                  auxiliaryNodeTextControllerList =
-                                                      [
-                                                    TextEditingController(),
-                                                    TextEditingController(),
-                                                    TextEditingController()
-                                                  ];
-
-                                                  auxiliaryNodeSelectedList = [
-                                                    false,
-                                                    false,
-                                                    false
-                                                  ];
+                                                  resetSubmission();
                                                 });
                                               },
                                               icon: Icon(
@@ -1494,10 +1667,13 @@ class _Test extends State<Test> {
                                                                                   .black),
                                                                           color: Colors
                                                                               .white),
-                                                                      child: Text(
-                                                                          style:
-                                                                              TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 24 : 30),
-                                                                          mainNode.nodeTerm))),
+                                                                      child: mainNode.image ==
+                                                                              1
+                                                                          ? Image.file(File(mainNode
+                                                                              .nodeTerm))
+                                                                          : Text(
+                                                                              style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 24 : 30),
+                                                                              mainNode.nodeTerm))),
                                                                   Container(
                                                                       color: Colors
                                                                           .transparent,
@@ -1527,8 +1703,7 @@ class _Test extends State<Test> {
                                                                                         editingNode = mainNode;
                                                                                         auxiliaryNodePriorEditList = mainNode.auxiliaries;
                                                                                         mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                        auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
-                                                                                        auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
+                                                                                        auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 0 : -1, selected: false)).toList();
                                                                                       });
                                                                                     },
                                                                                   )
@@ -1595,7 +1770,7 @@ class _Test extends State<Test> {
                                                                                   ],
                                                                                 ),
                                                                                 alignment: Alignment.center,
-                                                                                child: Container(padding: EdgeInsets.all(15), child: Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25))))),
+                                                                                child: Container(padding: EdgeInsets.all(15), child: mainNode.image == 1 ? Image.file(File(mainNode.nodeTerm)) : Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25))))),
                                                                         Container(
                                                                             color: Color.fromARGB(
                                                                                 0,
@@ -1622,8 +1797,7 @@ class _Test extends State<Test> {
                                                                                               editingNode = mainNode;
                                                                                               auxiliaryNodePriorEditList = mainNode.auxiliaries;
                                                                                               mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                              auxiliaryNodeTextControllerList = mainNode.auxiliaries.map((e) => TextEditingController(text: e)).toList();
-                                                                                              auxiliaryNodeSelectedList = List.filled(auxiliaryNodeTextControllerList.length, false, growable: true);
+                                                                                              auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 0 : -1, selected: false)).toList();
                                                                                             });
                                                                                           },
                                                                                         )
