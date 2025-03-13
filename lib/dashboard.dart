@@ -131,15 +131,16 @@ class _Dashboard extends State<Dashboard> {
 
   //currently selected set
   int currentlySelectedSet = -1;
-  Color dashboardColor = const Color.fromRGBO(252, 231, 200, 1);
-  Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
-  Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
-  Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
+  // Color dashboardColor = const Color.fromRGBO(252, 231, 200, 1);
+  // Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
+  // Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
+  // Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
 
   // Color dashboardColor = const Color.fromARGB(255, 78, 62, 110);
-  // Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
-  // Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
-  // Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
+  Color dashboardColor = Colors.white;
+  Color primary1 = Color.fromARGB(255, 112, 103, 179);
+  Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
+  Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
 
   Color secondaryColor = const Color.fromARGB(255, 82, 72, 159);
   List<bool> checkboxList = [];
@@ -861,12 +862,12 @@ class _Dashboard extends State<Dashboard> {
                                           children: [
                                             SizedBox(height: 20),
                                             Container(
-                                                child: const Row(
+                                                child: Row(
                                               children: [
                                                 Text(
                                                   "Dashboard",
                                                   style: TextStyle(
-                                                      color: Colors.white,
+                                                      color: primary1,
                                                       fontWeight:
                                                           FontWeight.w800,
                                                       fontSize: 20),
@@ -1246,6 +1247,10 @@ class _Dashboard extends State<Dashboard> {
                                                   child: Container(
                                                 margin: const EdgeInsets.only(
                                                     top: 20),
+                                                decoration: BoxDecoration(
+                                                    border: Border.all(
+                                                        width: 1,
+                                                        color: Colors.black)),
                                                 constraints:
                                                     const BoxConstraints(
                                                   maxWidth: 480,
@@ -1488,7 +1493,7 @@ class _Dashboard extends State<Dashboard> {
                                             ]),
                                             directoryFilesStarredOrdered
                                                     .isNotEmpty
-                                                ? const Column(
+                                                ? Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
                                                             .start,
@@ -1496,6 +1501,7 @@ class _Dashboard extends State<Dashboard> {
                                                         SizedBox(height: 20),
                                                         Text("Starred",
                                                             style: TextStyle(
+                                                                color: primary1,
                                                                 fontSize: 25)),
                                                         SizedBox(height: 5)
                                                       ])
@@ -1540,10 +1546,10 @@ class _Dashboard extends State<Dashboard> {
                                                             .isNotEmpty
                                                         ? 30
                                                         : 20),
-                                            const Row(children: [
+                                            Row(children: [
                                               Text("Constellations",
                                                   style: TextStyle(
-                                                      color: Colors.white,
+                                                      color: primary1,
                                                       fontSize: 25)),
                                             ]),
                                             const SizedBox(height: 5),

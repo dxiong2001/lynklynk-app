@@ -165,15 +165,15 @@ class _Test extends State<Test> {
 
   bool _loadingVisible = false;
 
-  Color backgroundColor = const Color.fromRGBO(252, 231, 200, 1);
-  Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
-  Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
-  Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
+  // Color backgroundColor = const Color.fromRGBO(252, 231, 200, 1);
+  // Color primary1 = const Color.fromRGBO(177, 194, 158, 1);
+  // Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
+  // Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
 
-  // Color backgroundColor = const Color.fromARGB(255, 78, 62, 110);
-  // Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
-  // Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
-  // Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
+  Color backgroundColor = const Color.fromARGB(255, 78, 62, 110);
+  Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
+  Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
+  Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
 
   ScrollController bottomDisplayScrollController1 = ScrollController();
   ScrollController bottomDisplayScrollController2 = ScrollController();
@@ -915,6 +915,7 @@ class _Test extends State<Test> {
   }
 
   Widget auxiliaryDisplay(String term) {
+    Node auxNode = nodeMap[term]!;
     return Container(
         key: UniqueKey(),
         child: Row(
@@ -934,11 +935,13 @@ class _Test extends State<Test> {
                                 border: Border(
                                     left: BorderSide(
                                         width: 5,
-                                        color: colorFromString(
-                                            nodeMap[term]!.color)))),
+                                        color:
+                                            colorFromString(auxNode.color)))),
                             margin: EdgeInsets.only(right: 20),
                             padding: EdgeInsets.all(10),
-                            child: Text(term)))))
+                            child: auxNode.image == 1
+                                ? Image.file(File(term))
+                                : Text(term)))))
           ],
         ));
   }
@@ -1312,10 +1315,17 @@ class _Test extends State<Test> {
                           color: Colors.black)),
                   padding: EdgeInsets.all(10),
                   child: Center(
-                      child: Text(nodeListSlice[index].nodeTerm,
-                          style: TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2)),
+                      child: nodeListSlice[index].image == 1
+                          ? Container(
+                              clipBehavior: Clip.hardEdge,
+                              decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(5)),
+                              child: Image.file(
+                                  File(nodeListSlice[index].nodeTerm)))
+                          : Text(nodeListSlice[index].nodeTerm,
+                              style: TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2)),
                 )),
             nodeTrack[index] >= 0
                 ? SizedBox()
@@ -1669,11 +1679,10 @@ class _Test extends State<Test> {
                                                                               .white),
                                                                       child: mainNode.image ==
                                                                               1
-                                                                          ? Image.file(File(mainNode
-                                                                              .nodeTerm))
-                                                                          : Text(
-                                                                              style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 24 : 30),
-                                                                              mainNode.nodeTerm))),
+                                                                          ? ClipRRect(
+                                                                              borderRadius: BorderRadius.circular(8.0),
+                                                                              child: Image.file(File(mainNode.nodeTerm)))
+                                                                          : Text(style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 24 : 30), mainNode.nodeTerm))),
                                                                   Container(
                                                                       color: Colors
                                                                           .transparent,
@@ -1703,7 +1712,9 @@ class _Test extends State<Test> {
                                                                                         editingNode = mainNode;
                                                                                         auxiliaryNodePriorEditList = mainNode.auxiliaries;
                                                                                         mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                        auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 0 : -1, selected: false)).toList();
+                                                                                        editingModeTextUpload = mainNode.image == 0;
+                                                                                        editingModePhotoUploaded = mainNode.image == 1;
+                                                                                        auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 1 : -1, selected: false)).toList();
                                                                                       });
                                                                                     },
                                                                                   )
@@ -1797,7 +1808,9 @@ class _Test extends State<Test> {
                                                                                               editingNode = mainNode;
                                                                                               auxiliaryNodePriorEditList = mainNode.auxiliaries;
                                                                                               mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                              auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 0 : -1, selected: false)).toList();
+                                                                                              editingModeTextUpload = mainNode.image == 0;
+                                                                                              editingModePhotoUploaded = mainNode.image == 1;
+                                                                                              auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 1 : -1, selected: false)).toList();
                                                                                             });
                                                                                           },
                                                                                         )
