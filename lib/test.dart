@@ -177,6 +177,7 @@ class _Test extends State<Test> {
 
   ScrollController bottomDisplayScrollController1 = ScrollController();
   ScrollController bottomDisplayScrollController2 = ScrollController();
+  SearchController search = SearchController();
 
   var database;
 
@@ -660,19 +661,31 @@ class _Test extends State<Test> {
   }
 
   List<Node> nodeSearchSuggestion(TextEditingController controller,
-      {bool matchCase = false, bool matchStart = true}) {
+      {bool matchCase = false, bool matchStart = true, int searchLimit = 8}) {
     if (controller.text.isEmpty) {
       return [];
     }
 
+    List<Node> returnList = [];
+
     if (!matchCase) {
-      return nodeList
+      returnList = nodeList
           .where((e) => e.nodeTerm.startsWith(controller.text))
           .toList();
     } else {
-      return nodeList
+      returnList = nodeList
           .where((e) => e.nodeTerm.startsWith(controller.text))
           .toList();
+    }
+    print(returnList);
+    if (returnList.isEmpty) {
+      return [];
+    } else {
+      returnList = returnList
+          .getRange(0, min(returnList.length - 1, searchLimit))
+          .toList();
+
+      return returnList;
     }
   }
 
@@ -1552,13 +1565,26 @@ class _Test extends State<Test> {
                                                       : Colors.black,
                                                   size: 20,
                                                   Icons.edit))),
-                                      const Spacer(),
-                                      Container(
+                                      Spacer(),
+                                      Expanded(
+                                          child: Container(
                                         margin: EdgeInsets.only(right: 5),
-                                        constraints:
-                                            BoxConstraints(maxWidth: 60),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                        ),
+                                        constraints: BoxConstraints(
+                                          minHeight: 40,
+                                          minWidth:
+                                              MediaQuery.sizeOf(context).width >
+                                                      600
+                                                  ? 480
+                                                  : 400,
+                                        ),
                                         child: SearchAnchor(
-                                            viewBackgroundColor: primary1,
+                                            searchController: search,
+                                            viewBackgroundColor: Colors.white,
+                                            viewConstraints:
+                                                BoxConstraints(maxHeight: 400),
                                             viewShape:
                                                 const ContinuousRectangleBorder(
                                                     side: BorderSide(
@@ -1573,14 +1599,14 @@ class _Test extends State<Test> {
                                                     const BoxConstraints(
                                                         maxHeight: 40),
                                                 backgroundColor:
-                                                    WidgetStatePropertyAll(
-                                                        primary1),
+                                                    const WidgetStatePropertyAll(
+                                                        Colors.white),
                                                 overlayColor:
-                                                    WidgetStatePropertyAll(
-                                                        primary1),
+                                                    const WidgetStatePropertyAll(
+                                                        Colors.white),
                                                 surfaceTintColor:
                                                     const WidgetStatePropertyAll(
-                                                        Colors.transparent),
+                                                        Colors.white),
                                                 shadowColor:
                                                     const WidgetStatePropertyAll(
                                                         Colors.transparent),
@@ -1609,19 +1635,21 @@ class _Test extends State<Test> {
 
                                               return suggestionList.map((e) {
                                                 return Container(
+                                                    width: 400,
                                                     child: ListTile(
-                                                  tileColor: Colors.white,
-                                                  title: Text(e.nodeTerm),
-                                                  onTap: () {
-                                                    setState(() {
-                                                      mainNode = e;
-                                                      controller.closeView("");
-                                                    });
-                                                  },
-                                                ));
+                                                      tileColor: Colors.white,
+                                                      title: Text(e.nodeTerm),
+                                                      onTap: () {
+                                                        setState(() {
+                                                          mainNode = e;
+                                                          controller
+                                                              .closeView("");
+                                                        });
+                                                      },
+                                                    ));
                                               });
                                             }),
-                                      ),
+                                      )),
                                     ],
                                   )),
                               editingMode
