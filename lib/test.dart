@@ -595,6 +595,7 @@ class _Test extends State<Test> {
     // String updateDate;
 
     String nodeTerm = mainNodeTextController.text;
+    print(nodeTerm);
     if (nodeTerm.isEmpty) {
       print("Term cannot be empty");
       return;
@@ -709,7 +710,7 @@ class _Test extends State<Test> {
         }
         auxiliaryReturn.add(auxTerm);
         Node newNode = Node(
-            id: nodeList[nodeList.length - 1].id + 1,
+            id: nodeList.isEmpty ? 1 : nodeList[nodeList.length - 1].id + 1,
             nodeTerm: auxTerm,
             auxiliaries: [mainNode],
             color: Color.fromARGB(255, 224, 224, 224).toString(),
@@ -1275,7 +1276,7 @@ class _Test extends State<Test> {
 
     if (nodeList.length <= 36) {
       nodeListSlice = nodeList;
-      nodeTrack = List.filled(nodeList.length, 1);
+      nodeTrack = List.filled(nodeList.length, 1, growable: true);
     } else {
       int row = (mainNode.id - 1) ~/ numRow;
 
@@ -1353,9 +1354,16 @@ class _Test extends State<Test> {
 
   void setBottomDisplayScrollPosition() {
     setState(() {
-      bottomDisplayScrollController1 = ScrollController(
-          initialScrollOffset:
-              MediaQuery.sizeOf(context).width > 820 ? 540 : 660);
+      if (nodeList.length <= 36) {
+        int divide = MediaQuery.sizeOf(context).width > 820 ? 4 : 3;
+        int offset = (mainNode.id - 1) ~/ divide * (120 + 15);
+        bottomDisplayScrollController1 =
+            ScrollController(initialScrollOffset: offset.toDouble());
+      } else {
+        bottomDisplayScrollController1 = ScrollController(
+            initialScrollOffset:
+                MediaQuery.sizeOf(context).width > 820 ? 540 : 660);
+      }
     });
   }
 
@@ -1913,6 +1921,7 @@ class _Test extends State<Test> {
                                                   },
                                                   title: Row(
                                                     children: [
+                                                      SizedBox(width: 46),
                                                       Container(
                                                           decoration: BoxDecoration(
                                                               border: Border.all(
@@ -1954,6 +1963,28 @@ class _Test extends State<Test> {
                                                                             820
                                                                         ? 540
                                                                         : 660,
+                                                                    duration: Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                    curve: Curves
+                                                                        .fastOutSlowIn,
+                                                                  );
+                                                                } else {
+                                                                  int divide =
+                                                                      MediaQuery.sizeOf(context).width >
+                                                                              820
+                                                                          ? 4
+                                                                          : 3;
+                                                                  int offset =
+                                                                      (mainNode.id -
+                                                                              1) ~/
+                                                                          divide *
+                                                                          (120 +
+                                                                              15);
+                                                                  bottomDisplayScrollController1
+                                                                      .animateTo(
+                                                                    offset
+                                                                        .toDouble(),
                                                                     duration: Duration(
                                                                         seconds:
                                                                             2),
@@ -2010,6 +2041,28 @@ class _Test extends State<Test> {
                                                                             820
                                                                         ? 540
                                                                         : 660,
+                                                                    duration: Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                    curve: Curves
+                                                                        .fastOutSlowIn,
+                                                                  );
+                                                                } else {
+                                                                  int divide =
+                                                                      MediaQuery.sizeOf(context).width >
+                                                                              820
+                                                                          ? 4
+                                                                          : 3;
+                                                                  int offset =
+                                                                      (mainNode.id -
+                                                                              1) ~/
+                                                                          divide *
+                                                                          (120 +
+                                                                              15);
+                                                                  bottomDisplayScrollController1
+                                                                      .animateTo(
+                                                                    offset
+                                                                        .toDouble(),
                                                                     duration: Duration(
                                                                         seconds:
                                                                             2),

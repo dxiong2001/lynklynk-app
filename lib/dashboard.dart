@@ -353,7 +353,7 @@ class _Dashboard extends State<Dashboard> {
 
     var nodeDB = await nodeDatabase;
     await nodeDB.execute(
-      'CREATE TABLE "${file.fileName}_${file.id.toString()}"(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, nodeTerm TEXT, auxiliaries TEXT, color TEXT, createDate TEXT, updateDate TEXT)',
+      'CREATE TABLE "${file.fileName}_${file.id.toString()}"(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, nodeTerm TEXT, auxiliaries TEXT, color TEXT, createDate TEXT, updateDate TEXT, image INTEGER NOT NULL DEFAULT (0))',
     );
     if (file.existingFile == 1) {
       insertNodes(file);
