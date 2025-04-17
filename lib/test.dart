@@ -667,6 +667,13 @@ class _Test extends State<Test> {
     nodeMap[newNode.nodeTerm] = newNode;
   }
 
+// -------------------------------------------------------------------------------------------------------------------------------------
+// nodeSearchSuggestion method
+// parameters: TextEditingController controller [controller for node search bar that is to get the search parameter]
+// optional parameters: bool matchCase [match by upper/lowercase], bool matchStart [match from beginning of string], int searchLimit [max number of search results to return]
+// return: List<Node> | returns a list of nodes that fit the search parameters
+// -------------------------------------------------------------------------------------------------------------------------------------
+
   List<Node> nodeSearchSuggestion(TextEditingController controller,
       {bool matchCase = false, bool matchStart = true, int searchLimit = 8}) {
     if (controller.text.isEmpty) {
@@ -895,6 +902,12 @@ class _Test extends State<Test> {
     }
   }
 
+// -------------------------------------------------------------------------------------------------------------------------------------
+// nodeMasterySelectButton method
+// parameters:
+// return: Widget | returns a widgt that comprises of a dropdown button that is used to select the node mastery for a node
+// -------------------------------------------------------------------------------------------------------------------------------------
+
   Widget nodeMasterySelectButton() {
     final List<String> dropDownList = nodeMasteryColorMap.keys.toList();
     String mainNodeMasteryText =
@@ -967,6 +980,11 @@ class _Test extends State<Test> {
 // -------------------------------------------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------------------------------------------
 
+// -------------------------------------------------------------------------------------------------------------------------------------
+// auxiliaryDisplayProxyDecorator method
+// - used for the ReorderableListView that displays the auxiliary nodes
+// -------------------------------------------------------------------------------------------------------------------------------------
+
   Widget auxiliaryDisplayProxyDecorator(
       Widget child, int index, Animation<double> animation) {
     return AnimatedBuilder(
@@ -985,6 +1003,12 @@ class _Test extends State<Test> {
       child: child,
     );
   }
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+// auxiliaryDisplay method
+// - parameters: String term [the nodeTerm of the node whose auxiliary nodes are to be displayed]
+// - return: Widget | returns a widget that displays a card with auxiliary node information (term and color)
+// -------------------------------------------------------------------------------------------------------------------------------------
 
   Widget auxiliaryDisplay(String term) {
     Node auxNode = nodeMap[term]!;
@@ -1019,8 +1043,11 @@ class _Test extends State<Test> {
   }
 
 // -------------------------------------------------------------------------------------------------------------------------------------
-// Node Submission Component
+// copyFile method
+// - parameters: File file [the file that is copied from]
+// - return: Future<String> | Returns a string containing the full path of the newly copied file
 // -------------------------------------------------------------------------------------------------------------------------------------
+
   Future<String> copyFile(File file) async {
     Directory appDocDir = await getApplicationDocumentsDirectory();
     String appDocPath = appDocDir.path;
@@ -1037,7 +1064,11 @@ class _Test extends State<Test> {
     return copyFile.path;
   }
 
-  Widget constellationSubmissionComponent() {
+// -------------------------------------------------------------------------------------------------------------------------------------
+// Node Submission Component
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+  Widget nodeSubmissionComponent() {
     return Expanded(
         child: Container(
             margin: EdgeInsets.only(top: 20),
@@ -1725,7 +1756,7 @@ class _Test extends State<Test> {
 // Node Submission Dashboard
 // -------------------------------------------------------------------------------------------------------------------------------------
 
-                                  constellationSubmissionComponent()
+                                  nodeSubmissionComponent()
                                   :
 // -------------------------------------------------------------------------------------------------------------------------------------
 // Node Flashcard Mode
