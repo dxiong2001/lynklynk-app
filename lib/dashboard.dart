@@ -481,7 +481,7 @@ class _Dashboard extends State<Dashboard> {
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border.all(
-              width: currentlySelectedSet == file.id ? 3 : 1,
+              width: currentlySelectedSet == file.id ? 3 : 3,
               color: Colors.black),
           boxShadow: const [
             BoxShadow(
@@ -817,7 +817,7 @@ class _Dashboard extends State<Dashboard> {
                     child: Container(
                         decoration: BoxDecoration(
                           color: dashboardColor,
-                          border: Border.all(width: 0.8, color: Colors.black),
+                          border: Border.all(width: 3, color: Colors.black),
                         ),
                         child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -829,8 +829,7 @@ class _Dashboard extends State<Dashboard> {
                                       color: primary1,
                                       border: const Border(
                                           right: BorderSide(
-                                              width: 0.8,
-                                              color: Colors.black))),
+                                              width: 3, color: Colors.black))),
                                   constraints: BoxConstraints(maxWidth: 60),
                                   child: Column(
                                     children: [
@@ -892,7 +891,7 @@ class _Dashboard extends State<Dashboard> {
                                                           decoration: BoxDecoration(
                                                               color: primary1,
                                                               border: Border.all(
-                                                                  width: 1,
+                                                                  width: 3,
                                                                   color: Colors
                                                                       .black),
                                                               boxShadow: const [
@@ -1082,7 +1081,7 @@ class _Dashboard extends State<Dashboard> {
                                                               BoxDecoration(
                                                             color: primary2,
                                                             border: Border.all(
-                                                                width: 1,
+                                                                width: 3,
                                                                 color: Colors
                                                                     .black),
                                                             boxShadow: const [
@@ -1211,7 +1210,7 @@ class _Dashboard extends State<Dashboard> {
                                                     decoration: BoxDecoration(
                                                       color: primary3,
                                                       border: Border.all(
-                                                          width: 1,
+                                                          width: 3,
                                                           color: Colors.black),
                                                       boxShadow: const [
                                                         BoxShadow(
@@ -1249,7 +1248,7 @@ class _Dashboard extends State<Dashboard> {
                                                     top: 20),
                                                 decoration: BoxDecoration(
                                                     border: Border.all(
-                                                        width: 1,
+                                                        width: 3,
                                                         color: Colors.black)),
                                                 constraints:
                                                     const BoxConstraints(
@@ -1265,7 +1264,7 @@ class _Dashboard extends State<Dashboard> {
                                                     viewShape:
                                                         const ContinuousRectangleBorder(
                                                             side: BorderSide(
-                                                                width: 1,
+                                                                width: 3,
                                                                 color: Colors
                                                                     .black)),
                                                     builder:
@@ -1377,7 +1376,7 @@ class _Dashboard extends State<Dashboard> {
                                                         decoration:
                                                             BoxDecoration(
                                                           border: Border.all(
-                                                              width: 1,
+                                                              width: 3,
                                                               color:
                                                                   Colors.black),
                                                           color: primary3,

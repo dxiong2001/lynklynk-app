@@ -107,12 +107,14 @@ class _Test extends State<Test> {
   //list of all nodes in the constellation
   List<Node> nodeList = [];
   Map<String, Node> nodeMap = {};
+  Map<int, int> nodeIdMap = {};
 
   //bool for editing mode
   bool editingMode = true;
   bool editingModeCurrentNode = false;
   bool editingModeTextUpload = true;
   bool editingModePhotoUploaded = false;
+  bool bottomDisplayOpen = false;
 
   //main node with default set
   Node mainNode = Node(
@@ -170,8 +172,8 @@ class _Test extends State<Test> {
   // Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
   // Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
 
-  Color backgroundColor = const Color.fromARGB(255, 78, 62, 110);
-  Color primary1 = const Color.fromRGBO(137, 103, 179, 1);
+  Color backgroundColor = Color.fromARGB(255, 255, 255, 255);
+  Color primary1 = const Color.fromARGB(255, 112, 103, 179);
   Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
   Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
 
@@ -193,7 +195,6 @@ class _Test extends State<Test> {
       "Difficult": nodeMasteryColorDifficult,
       "Just Learned": nodeMasteryColorLearned
     };
-    print("---------------------");
 
     _asyncLoadDB();
 
@@ -237,6 +238,10 @@ class _Test extends State<Test> {
         nodeMap = <String, Node>{
           for (Node n in queryResultsList) n.nodeTerm: n
         };
+        nodeIdMap =
+            nodeList.asMap().map((i, element) => MapEntry(element.id, i));
+        print(nodeIdMap);
+        print(nodeList);
         loading = false;
       });
     } catch (e) {
@@ -308,9 +313,9 @@ class _Test extends State<Test> {
     await db.delete(
       '"${constellationName}_$constellationID"',
       // Use a `where` clause to delete a specific file.
-      where: 'nodeTerm = ?',
+      where: 'id = ?',
       // Pass the file's id as a whereArg to prevent SQL injection.
-      whereArgs: [node.nodeTerm],
+      whereArgs: [node.id],
     );
 
     updateNodes();
@@ -657,6 +662,7 @@ class _Test extends State<Test> {
   }
 
   void addNodeLocally(Node newNode) {
+    nodeIdMap[newNode.id] = nodeList.isNotEmpty ? nodeIdMap.values.last + 1 : 0;
     nodeList.add(newNode);
     nodeMap[newNode.nodeTerm] = newNode;
   }
@@ -678,13 +684,12 @@ class _Test extends State<Test> {
           .where((e) => e.nodeTerm.startsWith(controller.text))
           .toList();
     }
-    print(returnList);
+    print(returnList.map((e) => e.nodeTerm));
     if (returnList.isEmpty) {
       return [];
     } else {
-      returnList = returnList
-          .getRange(0, min(returnList.length - 1, searchLimit))
-          .toList();
+      returnList =
+          returnList.getRange(0, min(returnList.length, searchLimit)).toList();
 
       return returnList;
     }
@@ -731,6 +736,7 @@ class _Test extends State<Test> {
 // 1. updateNodeTerm: updates a node (and any relevant auxiliaries) with a new node term
 // 2. removeAuxiliaries: disconnects a node from its auxiliaries
 // 3. editNode: wrapper functions that uses all the above functions to update a node to its most recently edited version
+// 4. removeNode: deletes a node and uncouples all auxiliaries
 // -------------------------------------------------------------------------------------------------------------------------------------
 
   Node updateNodeTerm(Node node, String newNodeTerm) {
@@ -744,7 +750,7 @@ class _Test extends State<Test> {
         updateDate: node.updateDate);
 
     //Update node locally
-    nodeList[node.id - 1] = newNode;
+    nodeList[nodeIdMap[node.id]!] = newNode;
     nodeMap[node.nodeTerm] = newNode;
 
     updateNode(newNode);
@@ -754,7 +760,7 @@ class _Test extends State<Test> {
       auxiliaryNode
               .auxiliaries[auxiliaryNode.auxiliaries.indexOf(node.nodeTerm)] =
           newNodeTerm;
-      nodeList[auxiliaryNode.id - 1] = auxiliaryNode;
+      nodeList[nodeIdMap[auxiliaryNode.id]!] = auxiliaryNode;
       nodeMap[auxiliaryNode.nodeTerm] = auxiliaryNode;
       updateNode(auxiliaryNode);
     }
@@ -768,7 +774,7 @@ class _Test extends State<Test> {
 
       Node auxiliaryNode = nodeMap[auxiliary]!;
       auxiliaryNode.auxiliaries.removeWhere((e) => e == nodeTerm);
-      nodeList[auxiliaryNode.id - 1] = auxiliaryNode;
+      nodeList[nodeIdMap[auxiliaryNode.id]!] = auxiliaryNode;
       nodeMap[auxiliaryNode.nodeTerm] = auxiliaryNode;
       updateNode(auxiliaryNode);
     }
@@ -799,10 +805,62 @@ class _Test extends State<Test> {
 
     setState(() {
       updateNode(updatedNode);
-      nodeList[updatedNode.id - 1] = updatedNode;
+      nodeList[nodeIdMap[updatedNode.id]!] = updatedNode;
       nodeMap[updatedNode.nodeTerm] = updatedNode;
       mainNode = updatedNode;
     });
+  }
+
+  void removeNode() {
+    Node nodeToRemove = mainNode;
+    int nodeIndex = nodeIdMap[nodeToRemove.id]!;
+
+    for (int i = 0; i < nodeToRemove.auxiliaries.length; i++) {
+      Node newNode = nodeMap[nodeToRemove.auxiliaries[i]]!;
+      newNode.auxiliaries
+          .removeWhere((element) => element == nodeToRemove.nodeTerm);
+      updateNode(newNode);
+    }
+
+    nodeList.removeAt(nodeIndex);
+    nodeMap.remove(nodeToRemove.nodeTerm);
+    nodeIdMap.remove(nodeToRemove.id);
+
+    List<int> nodeIdList = nodeIdMap.values.toList();
+    for (int i = nodeIdList.length - 1; i >= 0; i--) {
+      if (nodeIdList[i] <= nodeIndex) {
+        break;
+      }
+      nodeIdList[i]--;
+    }
+    print(nodeIdList);
+
+    setState(() {
+      nodeIdMap = Map.fromIterables(nodeIdMap.keys, nodeIdList);
+    });
+
+    if (nodeList.isEmpty) {
+      editingMode = true;
+      setState(() {
+        mainNode = Node(
+            id: -1,
+            nodeTerm: "",
+            auxiliaries: [],
+            color: Colors.black.toString(),
+            image: 0,
+            updateDate: DateTime.now().toString(),
+            createDate: DateTime.now().toString());
+      });
+    } else {
+      setState(() {
+        if (nodeIndex >= nodeList.length) {
+          nodeIndex--;
+        }
+        mainNode = nodeList[nodeIndex];
+      });
+    }
+
+    deleteNode(nodeToRemove);
   }
 
 // -------------------------------------------------------------------------------------------------------------------------------------
@@ -982,7 +1040,8 @@ class _Test extends State<Test> {
   Widget constellationSubmissionComponent() {
     return Expanded(
         child: Container(
-            decoration: BoxDecoration(color: backgroundColor),
+            margin: EdgeInsets.only(top: 20),
+            decoration: BoxDecoration(color: Colors.white),
             padding: EdgeInsets.symmetric(horizontal: 20),
             child: ListView(
               controller: addNodeController,
@@ -991,21 +1050,20 @@ class _Test extends State<Test> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-                        height: 20,
                         decoration: const BoxDecoration(
                             border: Border(
-                                top: BorderSide(width: 1, color: Colors.black),
-                                left: BorderSide(width: 1, color: Colors.black),
+                                top: BorderSide(width: 3, color: Colors.black),
+                                left: BorderSide(width: 3, color: Colors.black),
                                 right:
-                                    BorderSide(width: 1, color: Colors.black))),
+                                    BorderSide(width: 3, color: Colors.black))),
                         child: TextButton(
                             style: ButtonStyle(
                                 padding:
                                     WidgetStatePropertyAll(EdgeInsets.all(2)),
                                 backgroundColor: WidgetStatePropertyAll(
                                     editingModeTextUpload
-                                        ? Colors.blue
-                                        : Colors.blue.shade800),
+                                        ? primary2
+                                        : primary1),
                                 shape: WidgetStatePropertyAll(
                                     ContinuousRectangleBorder())),
                             onPressed: () {
@@ -1021,20 +1079,19 @@ class _Test extends State<Test> {
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold)))),
                     Container(
-                        height: 20,
                         decoration: const BoxDecoration(
                             border: Border(
-                                top: BorderSide(width: 1, color: Colors.black),
+                                top: BorderSide(width: 3, color: Colors.black),
                                 right:
-                                    BorderSide(width: 1, color: Colors.black))),
+                                    BorderSide(width: 3, color: Colors.black))),
                         child: TextButton(
                             style: ButtonStyle(
                                 padding:
                                     WidgetStatePropertyAll(EdgeInsets.all(2)),
                                 backgroundColor: WidgetStatePropertyAll(
                                     !editingModeTextUpload
-                                        ? Colors.blue
-                                        : Colors.blue.shade800),
+                                        ? primary2
+                                        : primary1),
                                 shape: WidgetStatePropertyAll(
                                     ContinuousRectangleBorder())),
                             onPressed: () {
@@ -1056,29 +1113,31 @@ class _Test extends State<Test> {
                               editingModeTextUpload = true;
                               resetSubmission();
                             },
-                            child: Text("Update Constellation"))
+                            child: Text("Update Node"))
                         : TextButton(
                             onPressed: () {
                               if (mainNodeTextController.text.isEmpty) return;
                               editingModeTextUpload = true;
                               createNode();
                             },
-                            child: Text("Create Constellation"))
+                            child: Text("Create +"))
                   ],
                 ),
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 15, vertical: 2),
-                  decoration: const BoxDecoration(
-                      color: Colors.blue,
-                      border: Border(
-                          left: BorderSide(width: 1, color: Colors.black),
-                          right: BorderSide(width: 1, color: Colors.black),
-                          top: BorderSide(width: 1, color: Colors.black))),
+                  decoration: BoxDecoration(
+                      color: primary1,
+                      border: const Border(
+                          left: BorderSide(width: 3, color: Colors.black),
+                          right: BorderSide(width: 3, color: Colors.black),
+                          top: BorderSide(width: 3, color: Colors.black))),
                   child: Row(
                     children: [
                       const Text(
                           style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 20),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                              color: Colors.white),
                           "Main Node"),
                       Spacer(),
                       IconButton(
@@ -1102,7 +1161,7 @@ class _Test extends State<Test> {
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 border:
-                                    Border.all(width: 1, color: Colors.black),
+                                    Border.all(width: 3, color: Colors.black),
                               ),
                               child: editingModeTextUpload
                                   ? TextField(
@@ -1196,16 +1255,16 @@ class _Test extends State<Test> {
                     ],
                   ),
                 ),
-                Container(
-                    margin: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                        border: Border.all(width: 1, color: Colors.black)),
-                    padding: EdgeInsets.all(10),
-                    child: IconButton(
-                        onPressed: () {
-                          formatMainNodeText();
-                        },
-                        icon: Icon(Icons.rebase_edit))),
+                // Container(
+                //     margin: EdgeInsets.all(10),
+                //     decoration: BoxDecoration(
+                //         border: Border.all(width: 3, color: Colors.black)),
+                //     padding: EdgeInsets.all(10),
+                //     child: IconButton(
+                //         onPressed: () {
+                //           formatMainNodeText();
+                //         },
+                //         icon: Icon(Icons.rebase_edit))),
                 SizedBox(height: 10),
                 Row(children: [
                   Text(style: TextStyle(fontSize: 18), "Auxiliary Nodes"),
@@ -1278,7 +1337,7 @@ class _Test extends State<Test> {
       nodeListSlice = nodeList;
       nodeTrack = List.filled(nodeList.length, 1, growable: true);
     } else {
-      int row = (mainNode.id - 1) ~/ numRow;
+      int row = (nodeIdMap[mainNode.id]!) ~/ numRow;
 
       int startIndex = (row - (screenWidthLarger ? 4 : 5)) * numRow;
       int endIndex = (row + (screenWidthLarger ? 4 : 6)) * numRow;
@@ -1356,7 +1415,7 @@ class _Test extends State<Test> {
     setState(() {
       if (nodeList.length <= 36) {
         int divide = MediaQuery.sizeOf(context).width > 820 ? 4 : 3;
-        int offset = (mainNode.id - 1) ~/ divide * (120 + 15);
+        int offset = (nodeIdMap[mainNode.id]!) ~/ divide * (120 + 15);
         bottomDisplayScrollController1 =
             ScrollController(initialScrollOffset: offset.toDouble());
       } else {
@@ -1496,8 +1555,7 @@ class _Test extends State<Test> {
                             bottom: 10, right: 10, left: 10),
                         child: Container(
                             decoration: BoxDecoration(
-                              border:
-                                  Border.all(width: 0.8, color: Colors.black),
+                              border: Border.all(width: 3, color: Colors.black),
                             ),
                             child: Column(children: [
                               Container(
@@ -1505,7 +1563,7 @@ class _Test extends State<Test> {
                                     color: primary1,
                                     border: const Border(
                                         bottom: BorderSide(
-                                            width: 1, color: Colors.black)),
+                                            width: 3, color: Colors.black)),
                                   ),
                                   padding: const EdgeInsets.only(
                                       left: 25, right: 25),
@@ -1520,7 +1578,7 @@ class _Test extends State<Test> {
                                             border: Border.all(
                                                 color: const Color.fromARGB(
                                                     255, 0, 0, 0),
-                                                width: 1),
+                                                width: 2),
                                           ),
                                           child: IconButton(
                                             padding: EdgeInsets.zero,
@@ -1545,7 +1603,7 @@ class _Test extends State<Test> {
                                             border: Border.all(
                                                 color: const Color.fromARGB(
                                                     255, 0, 0, 0),
-                                                width: 1),
+                                                width: 2),
                                           ),
                                           child: IconButton(
                                               padding: EdgeInsets.zero,
@@ -1596,7 +1654,7 @@ class _Test extends State<Test> {
                                             viewShape:
                                                 const ContinuousRectangleBorder(
                                                     side: BorderSide(
-                                                        width: 1,
+                                                        width: 3,
                                                         color: Colors.black)),
                                             builder: (BuildContext context,
                                                 SearchController controller) {
@@ -1640,7 +1698,7 @@ class _Test extends State<Test> {
                                               List<Node> suggestionList =
                                                   nodeSearchSuggestion(
                                                       controller);
-
+                                              print(suggestionList.length);
                                               return suggestionList.map((e) {
                                                 return Container(
                                                     width: 400,
@@ -1708,7 +1766,7 @@ class _Test extends State<Test> {
                                                                       decoration: BoxDecoration(
                                                                           border: Border.all(
                                                                               width:
-                                                                                  1,
+                                                                                  3,
                                                                               color: Colors
                                                                                   .black),
                                                                           color: Colors
@@ -1737,7 +1795,11 @@ class _Test extends State<Test> {
                                                                           Spacer(),
                                                                           mainNodeHover
                                                                               ? Row(children: [
-                                                                                  IconButton(onPressed: () {}, icon: Icon(Icons.delete)),
+                                                                                  IconButton(
+                                                                                      onPressed: () {
+                                                                                        removeNode();
+                                                                                      },
+                                                                                      icon: Icon(Icons.delete)),
                                                                                   SizedBox(width: 10),
                                                                                   IconButton(
                                                                                     icon: Icon(Icons.edit),
@@ -1805,7 +1867,7 @@ class _Test extends State<Test> {
                                                                             // Main node card
                                                                             Container(
                                                                                 decoration: BoxDecoration(
-                                                                                  border: Border.all(width: 1, color: Colors.black),
+                                                                                  border: Border.all(width: 3, color: Colors.black),
                                                                                   color: Colors.white,
                                                                                   boxShadow: const [
                                                                                     BoxShadow(
@@ -1833,7 +1895,11 @@ class _Test extends State<Test> {
                                                                                 Spacer(),
                                                                                 mainNodeHover
                                                                                     ? Row(children: [
-                                                                                        IconButton(onPressed: () {}, icon: Icon(Icons.delete)),
+                                                                                        IconButton(
+                                                                                            onPressed: () {
+                                                                                              removeNode();
+                                                                                            },
+                                                                                            icon: Icon(Icons.delete)),
                                                                                         SizedBox(width: 10),
                                                                                         IconButton(
                                                                                           icon: Icon(Icons.edit),
@@ -1861,7 +1927,7 @@ class _Test extends State<Test> {
                                                               child: Container(
                                                             decoration: BoxDecoration(
                                                                 border: Border.all(
-                                                                    width: 1,
+                                                                    width: 3,
                                                                     color: Colors
                                                                         .black)),
                                                             padding:
@@ -1917,7 +1983,12 @@ class _Test extends State<Test> {
                                                 SizedBox(height: 20),
                                                 ExpansionTileCard(
                                                   onExpansionChanged: (value) {
-                                                    setBottomDisplayScrollPosition();
+                                                    setState(() {
+                                                      bottomDisplayOpen = value;
+                                                    });
+                                                    if (value) {
+                                                      setBottomDisplayScrollPosition();
+                                                    }
                                                   },
                                                   title: Row(
                                                     children: [
@@ -1937,22 +2008,116 @@ class _Test extends State<Test> {
                                                                   Colors.white,
                                                               onPressed: () {
                                                                 int setIndex =
-                                                                    mainNode.id;
+                                                                    nodeIdMap[
+                                                                        mainNode
+                                                                            .id]!;
                                                                 if (setIndex ==
-                                                                    1) {
+                                                                    0) {
                                                                   setIndex =
-                                                                      nodeList
-                                                                          .last
-                                                                          .id;
+                                                                      nodeIdMap
+                                                                          .values
+                                                                          .last;
                                                                 } else {
                                                                   setIndex--;
                                                                 }
                                                                 setState(() {
                                                                   mainNode =
                                                                       nodeList[
-                                                                          setIndex -
-                                                                              1];
+                                                                          setIndex];
                                                                 });
+
+                                                                if (!bottomDisplayOpen) {
+                                                                  return;
+                                                                }
+
+                                                                if (nodeList
+                                                                        .length >=
+                                                                    36) {
+                                                                  bottomDisplayScrollController1
+                                                                      .animateTo(
+                                                                    MediaQuery.sizeOf(context).width >
+                                                                            820
+                                                                        ? 540
+                                                                        : 660,
+                                                                    duration: Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                    curve: Curves
+                                                                        .fastOutSlowIn,
+                                                                  );
+                                                                } else {
+                                                                  int divide =
+                                                                      MediaQuery.sizeOf(context).width >
+                                                                              820
+                                                                          ? 4
+                                                                          : 3;
+                                                                  int offset = (nodeIdMap[
+                                                                          mainNode
+                                                                              .id]!) ~/
+                                                                      divide *
+                                                                      (120 +
+                                                                          15);
+                                                                  bottomDisplayScrollController1
+                                                                      .animateTo(
+                                                                    offset
+                                                                        .toDouble(),
+                                                                    duration: Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                    curve: Curves
+                                                                        .fastOutSlowIn,
+                                                                  );
+                                                                }
+                                                              },
+                                                              icon: const Icon(
+                                                                  color: Colors
+                                                                      .black,
+                                                                  Icons
+                                                                      .arrow_left))),
+                                                      Spacer(),
+                                                      Text(
+                                                          "${nodeIdMap[mainNode.id]! + 1}/${nodeList.length}"),
+                                                      Spacer(),
+                                                      Container(
+                                                          decoration: BoxDecoration(
+                                                              border: Border.all(
+                                                                  width: 1,
+                                                                  color: Colors
+                                                                      .black),
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              color:
+                                                                  Colors.white),
+                                                          child: IconButton(
+                                                              color:
+                                                                  Colors.white,
+                                                              onPressed: () {
+                                                                int setIndex =
+                                                                    nodeIdMap[
+                                                                        mainNode
+                                                                            .id]!;
+                                                                print(setIndex);
+                                                                if (setIndex ==
+                                                                    nodeIdMap
+                                                                        .values
+                                                                        .last) {
+                                                                  setIndex = 0;
+                                                                } else {
+                                                                  setIndex++;
+                                                                }
+                                                                print(setIndex);
+                                                                setState(() {
+                                                                  mainNode =
+                                                                      nodeList[
+                                                                          setIndex];
+                                                                  print(mainNode
+                                                                      .auxiliaries);
+                                                                  print(mainNode
+                                                                      .nodeTerm);
+                                                                });
+                                                                if (!bottomDisplayOpen) {
+                                                                  return;
+                                                                }
 
                                                                 if (nodeList
                                                                         .length >=
@@ -1976,85 +2141,7 @@ class _Test extends State<Test> {
                                                                           ? 4
                                                                           : 3;
                                                                   int offset =
-                                                                      (mainNode.id -
-                                                                              1) ~/
-                                                                          divide *
-                                                                          (120 +
-                                                                              15);
-                                                                  bottomDisplayScrollController1
-                                                                      .animateTo(
-                                                                    offset
-                                                                        .toDouble(),
-                                                                    duration: Duration(
-                                                                        seconds:
-                                                                            2),
-                                                                    curve: Curves
-                                                                        .fastOutSlowIn,
-                                                                  );
-                                                                }
-                                                              },
-                                                              icon: const Icon(
-                                                                  color: Colors
-                                                                      .black,
-                                                                  Icons
-                                                                      .arrow_left))),
-                                                      Spacer(),
-                                                      Text(
-                                                          "${mainNode.id}/${nodeList.length}"),
-                                                      Spacer(),
-                                                      Container(
-                                                          decoration: BoxDecoration(
-                                                              border: Border.all(
-                                                                  width: 1,
-                                                                  color: Colors
-                                                                      .black),
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                              color:
-                                                                  Colors.white),
-                                                          child: IconButton(
-                                                              color:
-                                                                  Colors.white,
-                                                              onPressed: () {
-                                                                int setIndex =
-                                                                    mainNode.id;
-                                                                if (setIndex ==
-                                                                    nodeList
-                                                                        .last
-                                                                        .id) {
-                                                                  setIndex = 1;
-                                                                } else {
-                                                                  setIndex++;
-                                                                }
-                                                                setState(() {
-                                                                  mainNode =
-                                                                      nodeList[
-                                                                          setIndex -
-                                                                              1];
-                                                                });
-                                                                if (nodeList
-                                                                        .length >=
-                                                                    36) {
-                                                                  bottomDisplayScrollController1
-                                                                      .animateTo(
-                                                                    MediaQuery.sizeOf(context).width >
-                                                                            820
-                                                                        ? 540
-                                                                        : 660,
-                                                                    duration: Duration(
-                                                                        seconds:
-                                                                            2),
-                                                                    curve: Curves
-                                                                        .fastOutSlowIn,
-                                                                  );
-                                                                } else {
-                                                                  int divide =
-                                                                      MediaQuery.sizeOf(context).width >
-                                                                              820
-                                                                          ? 4
-                                                                          : 3;
-                                                                  int offset =
-                                                                      (mainNode.id -
+                                                                      (nodeIdMap[mainNode.id]! -
                                                                               1) ~/
                                                                           divide *
                                                                           (120 +
