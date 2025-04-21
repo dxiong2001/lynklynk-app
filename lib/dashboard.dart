@@ -11,7 +11,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:collection/collection.dart';
-import 'package:lynklynk/test.dart';
+import 'package:lynklynk/constellation.dart';
 import 'package:path/path.dart';
 import 'package:intl/intl.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
@@ -138,7 +138,7 @@ class _Dashboard extends State<Dashboard> {
 
   // Color dashboardColor = const Color.fromARGB(255, 78, 62, 110);
   Color dashboardColor = Colors.white;
-  Color primary1 = Color.fromARGB(255, 112, 103, 179);
+  Color primary1 = const Color.fromARGB(255, 112, 103, 179);
   Color primary2 = const Color.fromRGBO(203, 128, 171, 1);
   Color primary3 = const Color.fromRGBO(238, 165, 166, 1);
 
@@ -210,7 +210,7 @@ class _Dashboard extends State<Dashboard> {
       onUpgrade: _onUpgradeNodeDB,
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.
-      version: 5,
+      version: 6,
     );
 
     try {
@@ -315,10 +315,12 @@ class _Dashboard extends State<Dashboard> {
     try {
       List<String> tableNames = await getAllTableNames(db);
       print(tableNames);
-      if (oldVersion < 5) {
+      if (oldVersion < 6) {
         for (int i = 0; i < tableNames.length - 1; i++) {
+          // await db.execute(
+          //     'ALTER TABLE "${tableNames[i]}" ADD COLUMN image INTEGER NOT NULL DEFAULT (0);');
           await db.execute(
-              'ALTER TABLE "${tableNames[i]}" ADD COLUMN image INTEGER NOT NULL DEFAULT (0);');
+              'ALTER TABLE "${tableNames[i]}" ADD COLUMN tag TEXT NOT NULL DEFAULT "";');
         }
       }
 
@@ -353,7 +355,7 @@ class _Dashboard extends State<Dashboard> {
 
     var nodeDB = await nodeDatabase;
     await nodeDB.execute(
-      'CREATE TABLE "${file.fileName}_${file.id.toString()}"(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, nodeTerm TEXT, auxiliaries TEXT, color TEXT, createDate TEXT, updateDate TEXT, image INTEGER NOT NULL DEFAULT (0))',
+      'CREATE TABLE "${file.fileName}_${file.id.toString()}"(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, nodeTerm TEXT, auxiliaries TEXT, color TEXT, createDate TEXT, updateDate TEXT, image INTEGER NOT NULL DEFAULT (0), tag TEXT NOT NULL DEFAULT "")',
     );
     if (file.existingFile == 1) {
       insertNodes(file);

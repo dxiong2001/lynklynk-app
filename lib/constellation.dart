@@ -28,6 +28,7 @@ import 'package:path_provider/path_provider.dart';
 class Node {
   final int id;
   String nodeTerm;
+  String tag;
   List<String> auxiliaries;
   String color;
   final int image;
@@ -37,6 +38,7 @@ class Node {
   Node(
       {required this.id,
       required this.nodeTerm,
+      required this.tag,
       required this.auxiliaries,
       required this.color,
       required this.image,
@@ -46,6 +48,7 @@ class Node {
     return {
       'id': id,
       'nodeTerm': nodeTerm,
+      'tag': tag,
       'auxiliaries': jsonEncode(auxiliaries),
       'color': color,
       'image': image,
@@ -120,6 +123,7 @@ class _Test extends State<Test> {
   Node mainNode = Node(
       id: -1,
       nodeTerm: "",
+      tag: "",
       auxiliaries: [],
       color: Colors.black.toString(),
       image: 0,
@@ -151,6 +155,7 @@ class _Test extends State<Test> {
   Node editingNode = Node(
       id: 0,
       nodeTerm: "",
+      tag: "",
       auxiliaries: [],
       color: "",
       image: 0,
@@ -260,6 +265,7 @@ class _Test extends State<Test> {
       for (final {
             'id': id as int,
             'nodeTerm': nodeTerm as String,
+            'tag': tag as String,
             'auxiliaries': auxiliaries as String,
             'color': color as String,
             'image': image as int,
@@ -269,6 +275,7 @@ class _Test extends State<Test> {
         Node(
           id: id,
           nodeTerm: nodeTerm,
+          tag: tag,
           auxiliaries: json.decode(auxiliaries).cast<String>().toList(),
           color: color,
           image: image,
@@ -288,6 +295,7 @@ class _Test extends State<Test> {
     );
   }
 
+//Fix node update with image => null check !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   Future<void> updateNode(Node node) async {
     // Get a reference to the database.
     final db = await database;
@@ -577,18 +585,12 @@ class _Test extends State<Test> {
     l.removeWhere((e) => e.controller.text.isEmpty);
     l.removeWhere((e) => e.controller.text == mainNode);
 
-    List<String> addedPrior = [];
-    for (int i = 0; i < l.length; i++) {
-      if (addedPrior.contains(l[i].controller.text)) {
-        l.removeAt(i);
-        i--;
-        continue;
-      } else {
-        addedPrior.add(l[i].controller.text);
-      }
-    }
+    Set<String> seen = {};
+    List<AuxiliaryEntry> uniqueAuxiliary =
+        l.where((entry) => seen.add(entry.controller.text)).toList();
 
-    return l;
+    print(uniqueAuxiliary.map((e) => e.controller.text));
+    return uniqueAuxiliary;
   }
 
   void createNode() async {
@@ -623,6 +625,7 @@ class _Test extends State<Test> {
       Node currentNode = nodeMap[nodeTerm]!;
       Set<String> currentNodeAux = currentNode.auxiliaries.toSet();
       currentNode.updateDate = DateTime.now().toString();
+      print(auxProcessedList);
       currentNode.auxiliaries =
           currentNodeAux.union(auxProcessedList.toSet()).toList();
 
@@ -640,6 +643,7 @@ class _Test extends State<Test> {
       Node newNode = Node(
           id: nodeList.isEmpty ? 1 : nodeList[nodeList.length - 1].id + 1,
           nodeTerm: nodeTerm,
+          tag: "",
           auxiliaries: auxProcessedList,
           color: color,
           image: (editingModePhotoUploaded) ? 1 : 0,
@@ -714,19 +718,23 @@ class _Test extends State<Test> {
         if (!existingAux.contains(mainNode)) {
           nodeMap[auxTerm]!.auxiliaries.add(mainNode);
         }
+        auxiliaryReturn.add(auxTerm);
       }
       // node does not already exist
       else {
         if (auxiliaries[i].imageMode == 1) {
           auxTerm = await copyFile(File(auxiliaryEntryList[i].controller.text));
         }
+
         auxiliaryReturn.add(auxTerm);
+
         Node newNode = Node(
             id: nodeList.isEmpty ? 1 : nodeList[nodeList.length - 1].id + 1,
             nodeTerm: auxTerm,
+            tag: "",
             auxiliaries: [mainNode],
             color: Color.fromARGB(255, 224, 224, 224).toString(),
-            image: auxiliaryEntryList[i].imageMode == 1 ? 1 : 0,
+            image: auxiliaries[i].imageMode == 1 ? 1 : 0,
             createDate: DateTime.now().toString(),
             updateDate: DateTime.now().toString());
         insertNode(newNode);
@@ -735,6 +743,7 @@ class _Test extends State<Test> {
         });
       }
     }
+
     return auxiliaryReturn;
   }
 
@@ -750,6 +759,7 @@ class _Test extends State<Test> {
     Node newNode = Node(
         id: node.id,
         nodeTerm: newNodeTerm,
+        tag: node.tag,
         auxiliaries: node.auxiliaries,
         color: node.color,
         image: 0,
@@ -787,7 +797,7 @@ class _Test extends State<Test> {
     }
   }
 
-  void editNode() {
+  void editNode() async {
     Node updatedNode = editingNode;
     if (mainNodeTextController.text != editingNode.nodeTerm) {
       updatedNode = updateNodeTerm(editingNode, mainNodeTextController.text);
@@ -804,12 +814,15 @@ class _Test extends State<Test> {
 
     Set<String> auxiliaryUnion = updateSet.intersection(currentSet);
     Set<String> auxiliaryToRemove = currentSet.difference(auxiliaryUnion);
+    print(auxiliaryToRemove);
 
-    updatedNode.auxiliaries = auxTextList;
+    print("----------------------------1");
 
-    createAuxiliaries(auxiliaryControllerTextList, mainNodeTextController.text);
+    List<String> auxProcessedList = await createAuxiliaries(
+        auxiliaryControllerTextList, mainNodeTextController.text);
+    print("----------------------------2");
     removeAuxiliaries(auxiliaryToRemove, mainNodeTextController.text);
-
+    updatedNode.auxiliaries = auxProcessedList;
     setState(() {
       updateNode(updatedNode);
       nodeList[nodeIdMap[updatedNode.id]!] = updatedNode;
@@ -821,12 +834,14 @@ class _Test extends State<Test> {
   void removeNode() {
     Node nodeToRemove = mainNode;
     int nodeIndex = nodeIdMap[nodeToRemove.id]!;
-
+    print(nodeToRemove.auxiliaries);
     for (int i = 0; i < nodeToRemove.auxiliaries.length; i++) {
       Node newNode = nodeMap[nodeToRemove.auxiliaries[i]]!;
       newNode.auxiliaries
           .removeWhere((element) => element == nodeToRemove.nodeTerm);
       updateNode(newNode);
+      nodeList[nodeIdMap[newNode.id]!] = newNode;
+      nodeMap[newNode.nodeTerm] = newNode;
     }
 
     nodeList.removeAt(nodeIndex);
@@ -852,6 +867,7 @@ class _Test extends State<Test> {
         mainNode = Node(
             id: -1,
             nodeTerm: "",
+            tag: "",
             auxiliaries: [],
             color: Colors.black.toString(),
             image: 0,
@@ -1011,6 +1027,15 @@ class _Test extends State<Test> {
 // -------------------------------------------------------------------------------------------------------------------------------------
 
   Widget auxiliaryDisplay(String term) {
+    // print(term);
+    // print(nodeMap);
+    // print("display");
+    // print(nodeMap.containsKey(term));
+    if (!nodeMap.containsKey(term)) {
+      return Container(
+        key: UniqueKey(),
+      );
+    }
     Node auxNode = nodeMap[term]!;
     return Container(
         key: UniqueKey(),
@@ -2141,10 +2166,10 @@ class _Test extends State<Test> {
                                                                   mainNode =
                                                                       nodeList[
                                                                           setIndex];
-                                                                  print(mainNode
-                                                                      .auxiliaries);
-                                                                  print(mainNode
-                                                                      .nodeTerm);
+                                                                  // print(mainNode
+                                                                  //     .auxiliaries);
+                                                                  // print(mainNode
+                                                                  //     .nodeTerm);
                                                                 });
                                                                 if (!bottomDisplayOpen) {
                                                                   return;
