@@ -480,20 +480,7 @@ class _Dashboard extends State<Dashboard> {
 
   Widget dashboardConstellationCard(DBFile file, BuildContext context) {
     return Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(
-              width: currentlySelectedSet == file.id ? 3 : 3,
-              color: Colors.black),
-          boxShadow: const [
-            BoxShadow(
-              color: const Color.fromARGB(255, 0, 0, 0),
-              blurRadius: 0,
-              offset: Offset(5, 5),
-              spreadRadius: 1,
-            )
-          ],
-        ),
+
         // decoration:
         //     BoxDecoration(border: Border.all(color: Colors.black, width: 1)),
         child: GestureDetector(
@@ -513,11 +500,12 @@ class _Dashboard extends State<Dashboard> {
             },
             child: Card(
                 shape: const RoundedRectangleBorder(
+                  side: BorderSide(width: 1),
                   borderRadius: const BorderRadius.all(
-                    Radius.circular(0),
+                    Radius.circular(15),
                   ),
                 ),
-                color: Colors.white,
+                color: Color.fromARGB(255, 255, 255, 255),
                 shadowColor: Colors.transparent,
                 child: Container(
                     child: Column(
@@ -551,12 +539,13 @@ class _Dashboard extends State<Dashboard> {
                                       size: 20,
                                       color: Color.fromARGB(255, 14, 14, 14))
                                   : Icon(Icons.star_rounded,
-                                      size: 20, color: primary2),
+                                      size: 20, color: Colors.black),
                             ),
                             const SizedBox(
                               width: 10,
                             ),
                             PopupMenuButton(
+                                tooltip: "",
                                 shape: ContinuousRectangleBorder(
                                     side: BorderSide(
                                         width: 1, color: Colors.black)),
@@ -679,7 +668,7 @@ class _Dashboard extends State<Dashboard> {
     return Scaffold(
         appBar: AppBar(
           scrolledUnderElevation: 0,
-          toolbarHeight: 40,
+          toolbarHeight: 50,
           titleSpacing: 0,
           primary: false,
 
@@ -700,11 +689,13 @@ class _Dashboard extends State<Dashboard> {
                     // Color.fromARGB(255, 75, 185, 233),
 
                     child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
                       color: const Color.fromARGB(255, 255, 255, 255),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          const SizedBox(width: 10),
+                          Icon(Icons.rocket_launch_sharp),
+                          Spacer(),
                           Container(
                               width: 30,
                               height: 30,
@@ -717,16 +708,11 @@ class _Dashboard extends State<Dashboard> {
                                   foregroundColor:
                                       const Color.fromARGB(255, 0, 0, 0),
                                 ),
-                                onPressed: () {
-                                  WindowManager.instance.minimize();
-                                  if (appMaximized) {
-                                    appMaximized = !appMaximized;
-                                  }
-                                },
+                                onPressed: () => windowManager.minimize(),
                                 icon: const Icon(
-                                    size: 12, Icons.horizontal_rule_sharp),
+                                    size: 14, Icons.horizontal_rule_sharp),
                               )),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 15),
                           Container(
                               width: 30,
                               height: 30,
@@ -738,44 +724,35 @@ class _Dashboard extends State<Dashboard> {
                                     foregroundColor:
                                         const Color.fromARGB(255, 0, 0, 0),
                                   ),
-                                  onPressed: () {
-                                    if (appMaximized) {
-                                      WindowManager.instance
-                                          .setFullScreen(false);
-                                    } else {
-                                      WindowManager.instance
-                                          .setFullScreen(true);
-                                    }
-                                    appMaximized = !appMaximized;
-                                  },
+                                  onPressed: () =>
+                                      windowManager.isMaximized().then((isMax) {
+                                        if (isMax) {
+                                          windowManager.restore();
+                                        } else {
+                                          windowManager.maximize();
+                                        }
+                                      }),
                                   icon: const Icon(
-                                      size: 12, Icons.web_asset_sharp))),
+                                      size: 14, Icons.web_asset_sharp))),
                           const SizedBox(width: 10),
                           SizedBox(
-                              width: 20,
-                              height: 20,
+                              width: 30,
+                              height: 30,
                               child: IconButton(
-                                padding: EdgeInsets.zero,
                                 style: IconButton.styleFrom(
                                   foregroundColor:
                                       const Color.fromARGB(255, 0, 0, 0),
                                 ),
-                                onPressed: () {
-                                  WindowManager.instance.close();
-                                },
+                                onPressed: () => windowManager.close(),
                                 icon: const Icon(
-                                  Icons.clear,
+                                  Icons.close,
                                   size: 14,
                                 ),
                               )),
-                          const SizedBox(width: 10),
                         ],
                       ),
                     ),
                   ))),
-          leading: Builder(
-            builder: (context) => const Icon(Icons.rocket_launch_sharp),
-          ),
         ),
         body: loading
             ? Container(
@@ -811,784 +788,392 @@ class _Dashboard extends State<Dashboard> {
                 opacity: visible ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 500),
                 child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color.fromARGB(
-                          251, 255, 255, 255), // Background color
-                    ),
-                    padding: EdgeInsets.only(bottom: 10, right: 10, left: 10),
-                    child: Container(
-                        decoration: BoxDecoration(
-                          color: dashboardColor,
-                          border: Border.all(width: 3, color: Colors.black),
-                        ),
-                        child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Container(
-                                  width: 60,
-                                  padding: EdgeInsets.only(top: 10),
-                                  decoration: BoxDecoration(
-                                      color: primary1,
-                                      border: const Border(
-                                          right: BorderSide(
-                                              width: 3, color: Colors.black))),
-                                  constraints: BoxConstraints(maxWidth: 60),
-                                  child: Column(
+                  decoration: const BoxDecoration(
+                    color:
+                        Color.fromARGB(251, 255, 255, 255), // Background color
+                  ),
+                  padding: EdgeInsets.only(bottom: 10, right: 10, left: 10),
+                  child: Expanded(
+                      child: Padding(
+                          padding: const EdgeInsets.only(left: 25),
+                          child: ListView(
+                              // mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 20),
+                                Row(
+                                    mainAxisAlignment: MainAxisAlignment.start,
                                     children: [
-                                      Container(
-                                          decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius: BorderRadius.all(
-                                                  Radius.circular(20)),
-                                              border: Border.all(
-                                                  width: 1,
-                                                  color: Colors.black)),
+                                      Tooltip(
+                                          margin:
+                                              const EdgeInsets.only(bottom: 20),
+                                          preferBelow: false,
+                                          message: 'Create a study file',
                                           child: Container(
-                                              width: 40,
-                                              alignment: Alignment.center,
+                                              height: 80,
+                                              width: 80,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                    width: 1,
+                                                    color: Colors.black),
+                                              ),
                                               child: IconButton(
-                                                  padding: EdgeInsets.all(0),
-                                                  color: primary2,
-                                                  onPressed: () {},
-                                                  icon: Icon(
-                                                      size: 40,
-                                                      Icons.account_circle))))
-                                    ],
-                                  )),
-                              Expanded(
-                                  child: Padding(
-                                      padding: const EdgeInsets.only(left: 25),
-                                      child: ListView(
-                                          // mainAxisAlignment: MainAxisAlignment.start,
-                                          children: [
-                                            SizedBox(height: 20),
-                                            Container(
-                                                child: Row(
-                                              children: [
-                                                Text(
-                                                  "Dashboard",
-                                                  style: TextStyle(
-                                                      color: primary1,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 20),
-                                                ),
-                                              ],
-                                            )),
-                                            const SizedBox(height: 20),
-                                            Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.start,
-                                                children: [
-                                                  Tooltip(
-                                                      margin:
-                                                          const EdgeInsets.only(
-                                                              bottom: 20),
-                                                      preferBelow: false,
-                                                      message:
-                                                          'Create a study file',
-                                                      child: Container(
-                                                          height: 80,
-                                                          width: 80,
-                                                          decoration: BoxDecoration(
-                                                              color: primary1,
-                                                              border: Border.all(
-                                                                  width: 3,
-                                                                  color: Colors
-                                                                      .black),
-                                                              boxShadow: const [
-                                                                BoxShadow(
-                                                                  color: Color
-                                                                      .fromARGB(
-                                                                          255,
-                                                                          0,
-                                                                          0,
-                                                                          0),
-                                                                  blurRadius: 0,
-                                                                  offset:
-                                                                      Offset(
-                                                                          5, 5),
-                                                                  spreadRadius:
-                                                                      1,
-                                                                )
-                                                              ]),
-                                                          child: IconButton(
-                                                              color:
-                                                                  Colors.white,
-                                                              icon: const Icon(
-                                                                  Icons.add),
-                                                              iconSize: 30,
-                                                              style: IconButton
-                                                                  .styleFrom(
-                                                                shape:
-                                                                    const ContinuousRectangleBorder(),
-                                                              ),
-                                                              onPressed: () {
-                                                                showModalBottomSheet<
-                                                                    void>(
-                                                                  isScrollControlled:
-                                                                      true,
-                                                                  backgroundColor:
-                                                                      Colors
-                                                                          .transparent,
-                                                                  context:
-                                                                      context,
-                                                                  enableDrag:
-                                                                      true,
-                                                                  shape: RoundedRectangleBorder(
-                                                                      borderRadius:
-                                                                          BorderRadius.circular(
-                                                                              10)),
-                                                                  builder:
-                                                                      (BuildContext
-                                                                          context) {
-                                                                    return Column(
-                                                                      mainAxisAlignment:
-                                                                          MainAxisAlignment
-                                                                              .end,
-                                                                      mainAxisSize:
-                                                                          MainAxisSize
-                                                                              .min,
-                                                                      children: <Widget>[
-                                                                        FractionallySizedBox(
-                                                                          widthFactor:
-                                                                              1,
-                                                                          child:
-                                                                              Form(
-                                                                            key:
-                                                                                _formKey,
-                                                                            child:
-                                                                                Stack(
-                                                                              alignment: Alignment.center,
-                                                                              children: <Widget>[
-                                                                                Container(
-                                                                                    height: 400,
-                                                                                    margin: EdgeInsets.only(bottom: 150),
-                                                                                    decoration: BoxDecoration(
-                                                                                      borderRadius: BorderRadius.only(
-                                                                                        bottomRight: Radius.circular(40),
-                                                                                      ),
-                                                                                      boxShadow: const [
-                                                                                        BoxShadow(
-                                                                                          color: Color.fromARGB(255, 0, 0, 0),
-                                                                                          blurRadius: 0,
-                                                                                          offset: Offset(7, 7),
-                                                                                          spreadRadius: 1,
-                                                                                        )
-                                                                                      ],
-                                                                                      color: dashboardColor,
-                                                                                      border: Border.all(width: 2, color: Colors.black),
-                                                                                    ),
-                                                                                    child: Column(
-                                                                                      children: [
-                                                                                        Container(
-                                                                                            decoration: BoxDecoration(color: primary2, border: Border(bottom: BorderSide(width: 2, color: Colors.black))),
-                                                                                            constraints: BoxConstraints(maxHeight: 40),
-                                                                                            child: Row(
-                                                                                              children: [
-                                                                                                Spacer(),
-                                                                                                Container(
-                                                                                                  alignment: Alignment.center,
-                                                                                                  height: 24,
-                                                                                                  width: 24,
-                                                                                                  margin: EdgeInsets.all(8),
-                                                                                                  decoration: BoxDecoration(color: const Color.fromARGB(255, 240, 159, 154), border: Border.all(width: 2, color: Colors.black), shape: BoxShape.circle),
-                                                                                                  child: IconButton(
-                                                                                                    padding: EdgeInsets.zero,
-                                                                                                    color: Colors.white,
-                                                                                                    icon: Icon(size: 14, Icons.clear),
-                                                                                                    onPressed: () => Navigator.pop(context),
-                                                                                                  ),
-                                                                                                )
-                                                                                              ],
-                                                                                            )),
-                                                                                        SizedBox(height: 50),
-                                                                                        Container(
-                                                                                          padding: EdgeInsets.all(20),
-                                                                                          child: TextFormField(
-                                                                                            controller: newConstellationNameController,
-
-                                                                                            // The validator receives the text that the user has entered.
-                                                                                            validator: (value) {
-                                                                                              if ((value == null || value.isEmpty)) {
-                                                                                                return 'Please enter some text';
-                                                                                              }
-                                                                                              if (_validateFileName(value)) {
-                                                                                                return 'File name already exists';
-                                                                                              }
-                                                                                              return null;
-                                                                                            },
-                                                                                          ),
-                                                                                        ),
-                                                                                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                                                                          TextButton(
-                                                                                            onPressed: () async {
-                                                                                              if (_formKey.currentState!.validate()) {
-                                                                                                _formKey.currentState?.save();
-                                                                                                String constellationName = newConstellationNameController.text;
-                                                                                                print(constellationName);
-
-                                                                                                setState(() {
-                                                                                                  newConstellationNameController = TextEditingController();
-                                                                                                });
-
-                                                                                                String currentDateTime = DateTime.now().toString();
-                                                                                                int id = directoryFiles.isEmpty ? 0 : directoryFiles.last.id + 1;
-                                                                                                await insertDBFile(DBFile(id: id, filePath: "$directoryName/$constellationName.txt", fileName: constellationName, createDate: currentDateTime, accessDate: currentDateTime, updateDate: currentDateTime, tags: [], starred: 0, existingFile: 0));
-
-                                                                                                if (context.mounted) {
-                                                                                                  Navigator.pop(context);
-                                                                                                  Navigator.push(
-                                                                                                    context,
-                                                                                                    MaterialPageRoute(builder: (context) => Test(id: id, constellationName: constellationName)
-                                                                                                        // Editor(path: "$directoryName/$constellationName.txt", isPath: true, fileName: constellationName)
-                                                                                                        ),
-                                                                                                  );
-                                                                                                }
-                                                                                              }
-                                                                                            },
-                                                                                            child: const Text('Create'),
-                                                                                          ),
-                                                                                          const SizedBox(width: 5),
-                                                                                        ]),
-                                                                                      ],
-                                                                                    )),
-                                                                                Container(
-                                                                                  decoration: BoxDecoration(color: Colors.white, border: Border.all(width: 2.5, color: Colors.black), borderRadius: BorderRadius.all(Radius.circular(50))),
-                                                                                  margin: EdgeInsets.only(bottom: 470),
-                                                                                  child: Icon(size: 50, Pelaicons.upload1LightOutline),
-                                                                                ),
-                                                                              ],
-                                                                            ),
+                                                  color: Colors.white,
+                                                  icon: const Icon(Icons.add,
+                                                      color: Colors.black),
+                                                  iconSize: 30,
+                                                  style: IconButton.styleFrom(
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        40)),
+                                                  ),
+                                                  onPressed: () {
+                                                    showModalBottomSheet<void>(
+                                                      isScrollControlled: true,
+                                                      backgroundColor:
+                                                          Colors.transparent,
+                                                      context: context,
+                                                      enableDrag: true,
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          10)),
+                                                      builder: (BuildContext
+                                                          context) {
+                                                        return Column(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .end,
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: <Widget>[
+                                                            FractionallySizedBox(
+                                                              widthFactor: 1,
+                                                              child: Form(
+                                                                key: _formKey,
+                                                                child: Stack(
+                                                                  alignment:
+                                                                      Alignment
+                                                                          .center,
+                                                                  children: <Widget>[
+                                                                    Container(
+                                                                        height:
+                                                                            400,
+                                                                        margin: EdgeInsets.only(
+                                                                            bottom:
+                                                                                150),
+                                                                        decoration:
+                                                                            BoxDecoration(
+                                                                          borderRadius:
+                                                                              BorderRadius.only(
+                                                                            bottomRight:
+                                                                                Radius.circular(40),
                                                                           ),
+                                                                          color:
+                                                                              dashboardColor,
+                                                                          border: Border.all(
+                                                                              width: 2,
+                                                                              color: Colors.black),
                                                                         ),
-                                                                      ],
-                                                                    );
-                                                                  },
-                                                                );
-                                                              }))),
-                                                  const SizedBox(
-                                                    width: 20,
-                                                  ),
-                                                  Tooltip(
-                                                      margin: EdgeInsets.only(
-                                                          bottom: 20),
-                                                      preferBelow: false,
-                                                      message:
-                                                          'Upload a study file',
-                                                      child: Container(
-                                                          height: 80,
-                                                          width: 80,
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: primary2,
-                                                            border: Border.all(
-                                                                width: 3,
-                                                                color: Colors
-                                                                    .black),
-                                                            boxShadow: const [
-                                                              BoxShadow(
-                                                                color: Color
-                                                                    .fromARGB(
-                                                                        255,
-                                                                        0,
-                                                                        0,
-                                                                        0),
-                                                                blurRadius: 0,
-                                                                offset: Offset(
-                                                                    5, 5),
-                                                                spreadRadius: 1,
-                                                              )
-                                                            ],
-                                                          ),
-                                                          child: IconButton(
-                                                              color:
-                                                                  Colors.white,
-                                                              icon: const Icon(Icons
-                                                                  .upload_file_sharp),
-                                                              iconSize: 30,
-                                                              style: IconButton
-                                                                  .styleFrom(
-                                                                shape:
-                                                                    const ContinuousRectangleBorder(),
-                                                              ),
-                                                              onPressed:
-                                                                  () async {
-                                                                FilePickerResult?
-                                                                    fileUploadResult =
-                                                                    await FilePicker
-                                                                        .platform
-                                                                        .pickFiles(
-                                                                  type: FileType
-                                                                      .custom,
-                                                                  allowedExtensions: [
-                                                                    'txt',
-                                                                    'pdf',
-                                                                    'doc'
+                                                                        child:
+                                                                            Column(
+                                                                          children: [
+                                                                            Container(
+                                                                                decoration: BoxDecoration(color: primary2, border: Border(bottom: BorderSide(width: 2, color: Colors.black))),
+                                                                                constraints: BoxConstraints(maxHeight: 40),
+                                                                                child: Row(
+                                                                                  children: [
+                                                                                    Spacer(),
+                                                                                    Container(
+                                                                                      alignment: Alignment.center,
+                                                                                      height: 24,
+                                                                                      width: 24,
+                                                                                      margin: EdgeInsets.all(8),
+                                                                                      decoration: BoxDecoration(color: const Color.fromARGB(255, 240, 159, 154), border: Border.all(width: 2, color: Colors.black), shape: BoxShape.circle),
+                                                                                      child: IconButton(
+                                                                                        padding: EdgeInsets.zero,
+                                                                                        color: Colors.white,
+                                                                                        icon: Icon(size: 14, Icons.clear),
+                                                                                        onPressed: () => Navigator.pop(context),
+                                                                                      ),
+                                                                                    )
+                                                                                  ],
+                                                                                )),
+                                                                            SizedBox(height: 50),
+                                                                            Container(
+                                                                              padding: EdgeInsets.all(20),
+                                                                              child: TextFormField(
+                                                                                controller: newConstellationNameController,
+
+                                                                                // The validator receives the text that the user has entered.
+                                                                                validator: (value) {
+                                                                                  if ((value == null || value.isEmpty)) {
+                                                                                    return 'Please enter some text';
+                                                                                  }
+                                                                                  if (_validateFileName(value)) {
+                                                                                    return 'File name already exists';
+                                                                                  }
+                                                                                  return null;
+                                                                                },
+                                                                              ),
+                                                                            ),
+                                                                            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                                                              TextButton(
+                                                                                onPressed: () async {
+                                                                                  if (_formKey.currentState!.validate()) {
+                                                                                    _formKey.currentState?.save();
+                                                                                    String constellationName = newConstellationNameController.text;
+                                                                                    print(constellationName);
+
+                                                                                    setState(() {
+                                                                                      newConstellationNameController = TextEditingController();
+                                                                                    });
+
+                                                                                    String currentDateTime = DateTime.now().toString();
+                                                                                    int id = directoryFiles.isEmpty ? 0 : directoryFiles.last.id + 1;
+                                                                                    await insertDBFile(DBFile(id: id, filePath: "$directoryName/$constellationName.txt", fileName: constellationName, createDate: currentDateTime, accessDate: currentDateTime, updateDate: currentDateTime, tags: [], starred: 0, existingFile: 0));
+
+                                                                                    if (context.mounted) {
+                                                                                      Navigator.pop(context);
+                                                                                      Navigator.push(
+                                                                                        context,
+                                                                                        MaterialPageRoute(builder: (context) => Test(id: id, constellationName: constellationName)
+                                                                                            // Editor(path: "$directoryName/$constellationName.txt", isPath: true, fileName: constellationName)
+                                                                                            ),
+                                                                                      );
+                                                                                    }
+                                                                                  }
+                                                                                },
+                                                                                child: const Text('Create'),
+                                                                              ),
+                                                                              const SizedBox(width: 5),
+                                                                            ]),
+                                                                          ],
+                                                                        )),
+                                                                    Container(
+                                                                      decoration: BoxDecoration(
+                                                                          color: Colors
+                                                                              .white,
+                                                                          border: Border.all(
+                                                                              width: 2.5,
+                                                                              color: Colors.black),
+                                                                          borderRadius: BorderRadius.all(Radius.circular(50))),
+                                                                      margin: EdgeInsets.only(
+                                                                          bottom:
+                                                                              470),
+                                                                      child: Icon(
+                                                                          size:
+                                                                              50,
+                                                                          Pelaicons
+                                                                              .upload1LightOutline),
+                                                                    ),
                                                                   ],
-                                                                );
-
-                                                                if (fileUploadResult ==
-                                                                    null) {
-                                                                  return;
-                                                                }
-                                                                String
-                                                                    defaultFileName =
-                                                                    './samples/test.txt';
-                                                                String
-                                                                    fileNameMaintain =
-                                                                    defaultFileName;
-                                                                for (int i = 0;
-                                                                    i <
-                                                                        fileUploadResult
-                                                                            .paths
-                                                                            .length;
-                                                                    i++) {
-                                                                  String
-                                                                      filePath =
-                                                                      fileUploadResult
-                                                                              .paths[i] ??
-                                                                          "./samples/test.txt";
-                                                                  String
-                                                                      fileName =
-                                                                      (fileUploadResult.names[i] ??
-                                                                              "test.txt")
-                                                                          .split(
-                                                                              ".")[0];
-
-                                                                  String
-                                                                      validFileName =
-                                                                      _validFileName(
-                                                                          fileName);
-                                                                  setState(() {
-                                                                    fileNameList
-                                                                        .add(
-                                                                            validFileName);
-                                                                    newConstellationNameController =
-                                                                        TextEditingController(
-                                                                            text:
-                                                                                _validFileName("Constellation"));
-                                                                  });
-                                                                  if (i == 0) {
-                                                                    fileNameMaintain =
-                                                                        validFileName;
-                                                                  }
-
-                                                                  String
-                                                                      currentDateTime =
-                                                                      DateTime.now()
-                                                                          .toString();
-                                                                  await insertDBFile(DBFile(
-                                                                      id: directoryFiles
-                                                                              .isEmpty
-                                                                          ? 0
-                                                                          : directoryFiles.last.id +
-                                                                              1,
-                                                                      filePath:
-                                                                          filePath,
-                                                                      fileName:
-                                                                          validFileName,
-                                                                      createDate:
-                                                                          currentDateTime,
-                                                                      accessDate:
-                                                                          currentDateTime,
-                                                                      updateDate:
-                                                                          currentDateTime,
-                                                                      tags: [],
-                                                                      starred:
-                                                                          0,
-                                                                      existingFile:
-                                                                          1));
-                                                                }
-
-                                                                print(
-                                                                    "file upload result: $fileUploadResult");
-                                                              }))),
-                                                  const SizedBox(
-                                                    width: 20,
-                                                  ),
-                                                  Container(
-                                                    height: 80,
-                                                    decoration: BoxDecoration(
-                                                      color: primary3,
-                                                      border: Border.all(
-                                                          width: 3,
-                                                          color: Colors.black),
-                                                      boxShadow: const [
-                                                        BoxShadow(
-                                                          color: Color.fromARGB(
-                                                              255, 0, 0, 0),
-                                                          blurRadius: 0,
-                                                          offset: Offset(5, 5),
-                                                          spreadRadius: 1,
-                                                        )
-                                                      ],
-                                                    ),
-                                                    child: TextButton.icon(
-                                                      onPressed: () => {},
-                                                      style: const ButtonStyle(
-                                                          shape: WidgetStatePropertyAll(
-                                                              ContinuousRectangleBorder())),
-                                                      label: const Text(
-                                                          style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                              fontSize: 20),
-                                                          "Continue from last set"),
-                                                      icon: const Icon(
-                                                        Icons.arrow_forward,
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
-                                                  )
-                                                ]),
-                                            const SizedBox(height: 20),
-                                            Row(children: [
-                                              Expanded(
-                                                  child: Container(
-                                                margin: const EdgeInsets.only(
-                                                    top: 20),
-                                                decoration: BoxDecoration(
-                                                    border: Border.all(
-                                                        width: 3,
-                                                        color: Colors.black)),
-                                                constraints:
-                                                    const BoxConstraints(
-                                                  maxWidth: 480,
-                                                  maxHeight: 300,
-                                                ),
-                                                child: SearchAnchor(
-                                                    viewConstraints:
-                                                        BoxConstraints(
-                                                            maxHeight: 300),
-                                                    viewBackgroundColor:
-                                                        Colors.white,
-                                                    viewShape:
-                                                        const ContinuousRectangleBorder(
-                                                            side: BorderSide(
-                                                                width: 3,
-                                                                color: Colors
-                                                                    .black)),
-                                                    builder:
-                                                        (BuildContext context,
-                                                            SearchController
-                                                                controller) {
-                                                      return SearchBar(
-                                                        shape: const WidgetStatePropertyAll(
-                                                            ContinuousRectangleBorder()),
-                                                        constraints:
-                                                            const BoxConstraints(
-                                                                maxHeight: 40),
-                                                        backgroundColor:
-                                                            const WidgetStatePropertyAll(
-                                                                Colors.white),
-                                                        overlayColor:
-                                                            const WidgetStatePropertyAll(
-                                                                Color.fromARGB(
-                                                                    255,
-                                                                    255,
-                                                                    255,
-                                                                    255)),
-                                                        surfaceTintColor:
-                                                            const WidgetStatePropertyAll(
-                                                                Color.fromARGB(
-                                                                    255,
-                                                                    255,
-                                                                    255,
-                                                                    255)),
-                                                        shadowColor:
-                                                            const WidgetStatePropertyAll(
-                                                                Colors
-                                                                    .transparent),
-                                                        controller: controller,
-                                                        padding:
-                                                            const WidgetStatePropertyAll<
-                                                                    EdgeInsets>(
-                                                                EdgeInsets.symmetric(
-                                                                    horizontal:
-                                                                        16.0)),
-                                                        onTap: () {
-                                                          controller.openView();
-                                                        },
-                                                        onChanged: (_) {
-                                                          controller.openView();
-                                                        },
-                                                        leading: const Icon(
-                                                            Icons.search),
-                                                        trailing: <Widget>[
-                                                          Tooltip(
-                                                            message:
-                                                                'Change brightness mode',
-                                                            child: IconButton(
-                                                              isSelected: true,
-                                                              onPressed: () {},
-                                                              icon: const Icon(Icons
-                                                                  .wb_sunny_outlined),
-                                                              selectedIcon:
-                                                                  const Icon(Icons
-                                                                      .brightness_2_outlined),
-                                                            ),
-                                                          )
-                                                        ],
-                                                      );
-                                                    },
-                                                    suggestionsBuilder:
-                                                        (BuildContext context,
-                                                            SearchController
-                                                                controller) {
-                                                      List<String>
-                                                          suggestionList =
-                                                          fileNameSearchSuggestionList(
-                                                              controller.text);
-                                                      print(suggestionList);
-
-                                                      return suggestionList
-                                                          .map((e) {
-                                                        return Container(
-                                                            child: ListTile(
-                                                          tileColor:
-                                                              Colors.white,
-                                                          title: Text(e),
-                                                          onTap: () {
-                                                            setState(() {
-                                                              controller
-                                                                  .closeView(e);
-                                                            });
-                                                          },
-                                                        ));
-                                                      });
-                                                    }),
-                                              )),
-                                              SizedBox(width: 20),
-                                              Container(
-                                                  margin: EdgeInsets.only(
-                                                      top: 20, right: 8),
-                                                  child:
-                                                      DropdownButtonHideUnderline(
-                                                    child:
-                                                        DropdownButton2<String>(
-                                                      buttonStyleData:
-                                                          ButtonStyleData(
-                                                        height: 40,
-                                                        width: 160,
-                                                        padding:
-                                                            EdgeInsets.only(
-                                                                left: 14,
-                                                                right: 14),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: Border.all(
-                                                              width: 3,
-                                                              color:
-                                                                  Colors.black),
-                                                          color: primary3,
-                                                        ),
-                                                      ),
-                                                      isExpanded: true,
-                                                      hint: Text(
-                                                        sortAttributeList[
-                                                            sortAttribute],
-                                                        style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 14,
-                                                          color: Color.fromARGB(
-                                                              255,
-                                                              255,
-                                                              255,
-                                                              255),
-                                                        ),
-                                                      ),
-                                                      items: sortAttributeList
-                                                          .map((String item) =>
-                                                              DropdownMenuItem<
-                                                                  String>(
-                                                                value: item,
-                                                                child: Text(
-                                                                  item,
-                                                                  style:
-                                                                      const TextStyle(
-                                                                    fontSize:
-                                                                        14,
-                                                                  ),
                                                                 ),
-                                                              ))
-                                                          .toList(),
-
-                                                      onChanged:
-                                                          (String? value) {
-                                                        setState(() {
-                                                          sortAttribute =
-                                                              sortAttributeList
-                                                                  .indexOf(value ??
-                                                                      "access");
-                                                          print("update");
-                                                          updateDirectoryFilesOrdering(
-                                                              directoryFiles);
-                                                        });
-                                                      },
-                                                      // buttonStyleData:
-                                                      //     const ButtonStyleData(
-                                                      //   overlayColor:
-                                                      //       WidgetStatePropertyAll(
-                                                      //           Colors.white),
-                                                      //   padding: EdgeInsets.symmetric(
-                                                      //       horizontal: 16),
-                                                      //   height: 40,
-                                                      //   width: 140,
-                                                      // ),
-                                                      iconStyleData:
-                                                          const IconStyleData(
-                                                        icon: Icon(
-                                                          Icons.arrow_drop_down,
-                                                        ),
-                                                        iconSize: 20,
-                                                        iconEnabledColor:
-                                                            Color.fromARGB(255,
-                                                                255, 255, 255),
-                                                        iconDisabledColor:
-                                                            Colors.grey,
-                                                      ),
-                                                      menuItemStyleData:
-                                                          const MenuItemStyleData(
-                                                        height: 40,
-                                                        overlayColor:
-                                                            WidgetStatePropertyAll(
-                                                                Colors.white),
-                                                      ),
-                                                      dropdownStyleData:
-                                                          DropdownStyleData(
-                                                        maxHeight: 200,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          boxShadow: [
-                                                            BoxShadow(
-                                                              color: Colors.grey
-                                                                  .withOpacity(
-                                                                      0.5),
-                                                              spreadRadius: 1,
-                                                              blurRadius: 3,
-                                                              offset: Offset(0,
-                                                                  2), // changes position of shadow
-                                                            )
+                                                              ),
+                                                            ),
                                                           ],
-                                                          color: Colors.white,
-                                                        ),
-                                                        offset:
-                                                            const Offset(0, -5),
-                                                        scrollbarTheme:
-                                                            ScrollbarThemeData(
-                                                          radius: const Radius
-                                                              .circular(40),
-                                                          thickness:
-                                                              WidgetStateProperty
-                                                                  .all(6),
-                                                          thumbVisibility:
-                                                              WidgetStateProperty
-                                                                  .all(true),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  )),
-                                              SizedBox(width: 20),
-                                            ]),
-                                            directoryFilesStarredOrdered
-                                                    .isNotEmpty
-                                                ? Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                        SizedBox(height: 20),
-                                                        Text("Starred",
-                                                            style: TextStyle(
-                                                                color: primary1,
-                                                                fontSize: 25)),
-                                                        SizedBox(height: 5)
-                                                      ])
-                                                : SizedBox(),
-                                            directoryFilesStarredOrdered
-                                                    .isNotEmpty
-                                                ? Container(
-                                                    margin: EdgeInsets.only(
-                                                        right: 30),
-                                                    child: GridView.builder(
-                                                        gridDelegate:
-                                                            SliverGridDelegateWithFixedCrossAxisCount(
-                                                          crossAxisCount:
-                                                              MediaQuery.sizeOf(
-                                                                              context)
-                                                                          .width >
-                                                                      800
-                                                                  ? 3
-                                                                  : 2,
-                                                          childAspectRatio: 1.0,
-                                                          crossAxisSpacing: 15,
-                                                          mainAxisSpacing: 15,
-                                                          mainAxisExtent: 300,
-                                                        ),
-                                                        shrinkWrap: true,
-                                                        itemCount:
-                                                            directoryFilesStarredOrdered
-                                                                .length,
-                                                        itemBuilder:
-                                                            (BuildContext
-                                                                    context,
-                                                                int index) {
-                                                          return dashboardConstellationCard(
-                                                              directoryFilesStarredOrdered[
-                                                                  index],
-                                                              context);
-                                                        }))
-                                                : const SizedBox(),
-                                            SizedBox(
-                                                height:
-                                                    directoryFilesStarredOrdered
-                                                            .isNotEmpty
-                                                        ? 30
-                                                        : 20),
-                                            Row(children: [
-                                              Text("Constellations",
-                                                  style: TextStyle(
-                                                      color: primary1,
-                                                      fontSize: 25)),
-                                            ]),
-                                            const SizedBox(height: 5),
-                                            Container(
-                                                margin:
-                                                    EdgeInsets.only(right: 30),
-                                                child: GridView.builder(
-                                                    gridDelegate:
-                                                        SliverGridDelegateWithFixedCrossAxisCount(
-                                                      crossAxisCount:
-                                                          MediaQuery.sizeOf(
-                                                                          context)
-                                                                      .width >
-                                                                  800
-                                                              ? 3
-                                                              : 2,
-                                                      childAspectRatio: 1.0,
-                                                      crossAxisSpacing: 15,
-                                                      mainAxisSpacing: 15,
-                                                      mainAxisExtent: 300,
-                                                    ),
-                                                    scrollDirection:
-                                                        Axis.vertical,
-                                                    shrinkWrap: true,
-                                                    controller: scroller,
-                                                    itemCount:
-                                                        directoryFilesUnstarredOrdered
-                                                            .length,
-                                                    itemBuilder:
-                                                        (BuildContext context,
-                                                            int index) {
-                                                      return dashboardConstellationCard(
-                                                          directoryFilesUnstarredOrdered[
-                                                              index],
-                                                          context);
-                                                    })),
-                                            SizedBox(height: 20)
-                                          ]))),
-                            ])))));
+                                                        );
+                                                      },
+                                                    );
+                                                  }))),
+                                      const SizedBox(
+                                        width: 25,
+                                      ),
+                                      Tooltip(
+                                          margin: EdgeInsets.only(bottom: 20),
+                                          preferBelow: false,
+                                          message: 'Upload a study file',
+                                          child: Container(
+                                              height: 80,
+                                              width: 80,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                    width: 1,
+                                                    color: Colors.black),
+                                              ),
+                                              child: IconButton(
+                                                  color: Colors.white,
+                                                  icon: const Icon(
+                                                      color: Colors.black,
+                                                      Icons.arrow_upward_sharp),
+                                                  iconSize: 30,
+                                                  style: IconButton.styleFrom(
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        40)),
+                                                  ),
+                                                  onPressed: () async {
+                                                    FilePickerResult?
+                                                        fileUploadResult =
+                                                        await FilePicker
+                                                            .platform
+                                                            .pickFiles(
+                                                      type: FileType.custom,
+                                                      allowedExtensions: [
+                                                        'txt',
+                                                        'pdf',
+                                                        'doc'
+                                                      ],
+                                                    );
+
+                                                    if (fileUploadResult ==
+                                                        null) {
+                                                      return;
+                                                    }
+                                                    String defaultFileName =
+                                                        './samples/test.txt';
+                                                    String fileNameMaintain =
+                                                        defaultFileName;
+                                                    for (int i = 0;
+                                                        i <
+                                                            fileUploadResult
+                                                                .paths.length;
+                                                        i++) {
+                                                      String filePath =
+                                                          fileUploadResult
+                                                                  .paths[i] ??
+                                                              "./samples/test.txt";
+                                                      String fileName =
+                                                          (fileUploadResult
+                                                                          .names[
+                                                                      i] ??
+                                                                  "test.txt")
+                                                              .split(".")[0];
+
+                                                      String validFileName =
+                                                          _validFileName(
+                                                              fileName);
+                                                      setState(() {
+                                                        fileNameList
+                                                            .add(validFileName);
+                                                        newConstellationNameController =
+                                                            TextEditingController(
+                                                                text: _validFileName(
+                                                                    "Constellation"));
+                                                      });
+                                                      if (i == 0) {
+                                                        fileNameMaintain =
+                                                            validFileName;
+                                                      }
+
+                                                      String currentDateTime =
+                                                          DateTime.now()
+                                                              .toString();
+                                                      await insertDBFile(DBFile(
+                                                          id:
+                                                              directoryFiles
+                                                                      .isEmpty
+                                                                  ? 0
+                                                                  : directoryFiles
+                                                                          .last
+                                                                          .id +
+                                                                      1,
+                                                          filePath: filePath,
+                                                          fileName:
+                                                              validFileName,
+                                                          createDate:
+                                                              currentDateTime,
+                                                          accessDate:
+                                                              currentDateTime,
+                                                          updateDate:
+                                                              currentDateTime,
+                                                          tags: [],
+                                                          starred: 0,
+                                                          existingFile: 1));
+                                                    }
+
+                                                    print(
+                                                        "file upload result: $fileUploadResult");
+                                                  }))),
+                                    ]),
+                                Container(
+                                    margin: EdgeInsets.only(top: 20),
+                                    child: Row(children: [
+                                      Text("Constellations",
+                                          style: TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 25)),
+                                    ])),
+                                directoryFilesStarredOrdered.isNotEmpty
+                                    ? Container(
+                                        margin: EdgeInsets.only(
+                                            right: 30, bottom: 15, top: 10),
+                                        child: GridView.builder(
+                                            gridDelegate:
+                                                SliverGridDelegateWithFixedCrossAxisCount(
+                                              crossAxisCount: MediaQuery.sizeOf(
+                                                              context)
+                                                          .width >
+                                                      1200
+                                                  ? 4
+                                                  : MediaQuery.sizeOf(context)
+                                                              .width >
+                                                          800
+                                                      ? 3
+                                                      : 2,
+                                              childAspectRatio: 1.0,
+                                              crossAxisSpacing: 15,
+                                              mainAxisSpacing: 15,
+                                              mainAxisExtent: 300,
+                                            ),
+                                            shrinkWrap: true,
+                                            itemCount:
+                                                directoryFilesStarredOrdered
+                                                    .length,
+                                            itemBuilder: (BuildContext context,
+                                                int index) {
+                                              return dashboardConstellationCard(
+                                                  directoryFilesStarredOrdered[
+                                                      index],
+                                                  context);
+                                            }))
+                                    : const SizedBox(),
+                                directoryFilesStarredOrdered.isNotEmpty
+                                    ? Divider()
+                                    : SizedBox(),
+                                Container(
+                                    margin: EdgeInsets.only(right: 30, top: 15),
+                                    child: GridView.builder(
+                                        gridDelegate:
+                                            SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount:
+                                              MediaQuery.sizeOf(context).width >
+                                                      1200
+                                                  ? 4
+                                                  : MediaQuery.sizeOf(context)
+                                                              .width >
+                                                          900
+                                                      ? 3
+                                                      : 2,
+                                          childAspectRatio: 1.0,
+                                          crossAxisSpacing: 15,
+                                          mainAxisSpacing: 15,
+                                          mainAxisExtent: 300,
+                                        ),
+                                        scrollDirection: Axis.vertical,
+                                        shrinkWrap: true,
+                                        controller: scroller,
+                                        itemCount:
+                                            directoryFilesUnstarredOrdered
+                                                .length,
+                                        itemBuilder:
+                                            (BuildContext context, int index) {
+                                          return dashboardConstellationCard(
+                                              directoryFilesUnstarredOrdered[
+                                                  index],
+                                              context);
+                                        })),
+                                SizedBox(height: 20)
+                              ]))),
+                )));
   }
 }
