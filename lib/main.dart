@@ -15,10 +15,10 @@ void main() async {
   await windowManager.ensureInitialized();
 
   WindowOptions windowOptions = const WindowOptions(
-    size: Size(1400, 750),
-    center: true,
-    skipTaskbar: false,
-  );
+      size: Size(1400, 750),
+      center: true,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.hidden);
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.focus();
   });

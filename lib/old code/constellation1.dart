@@ -19,7 +19,6 @@ import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/gestures.dart';
 
 class Node {
   final int id;
@@ -75,7 +74,7 @@ class Test extends StatefulWidget {
   State<Test> createState() => _Test();
 }
 
-class _Test extends State<Test> with TickerProviderStateMixin {
+class _Test extends State<Test> {
   bool maximized = false;
   suggestions.Suggestions suggestion = suggestions.Suggestions();
   List<Bullet.Bullet> bulletList = [];
@@ -184,14 +183,6 @@ class _Test extends State<Test> with TickerProviderStateMixin {
 
   var database;
 
-  late final AnimationController _controller;
-  late final Animation<double> _slideAnimation;
-  late final Animation<double> _fadeAnimation;
-
-  late final AnimationController _controller1;
-  late final Animation<double> _slideAnimation1;
-  late final Animation<double> _fadeAnimation1;
-
   double suggestionHeight = 100;
   @override
   void initState() {
@@ -204,28 +195,6 @@ class _Test extends State<Test> with TickerProviderStateMixin {
       "Difficult": nodeMasteryColorDifficult,
       "Just Learned": nodeMasteryColorLearned
     };
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 400),
-    );
-
-    _slideAnimation = Tween<double>(begin: -1.0, end: 0.0)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-    _controller1 = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 400),
-    );
-
-    _slideAnimation1 = Tween<double>(begin: -1.0, end: 0.0).animate(
-        CurvedAnimation(parent: _controller1, curve: Curves.easeInOut));
-
-    _fadeAnimation1 = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _controller1, curve: Curves.easeInOut));
 
     _asyncLoadDB();
 
@@ -1039,7 +1008,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           scale: scale,
           // Create a Card based on the color and the content of the dragged one
           // and set its elevation to the animated value.
-          child: auxiliaryDisplay(mainNode.auxiliaries[index], 2),
+          child: auxiliaryDisplay(mainNode.auxiliaries[index]),
         );
       },
       child: child,
@@ -1052,7 +1021,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
 // - return: Widget | returns a widget that displays a card with auxiliary node information (term and color)
 // -------------------------------------------------------------------------------------------------------------------------------------
 
-  Widget auxiliaryDisplay(String term, int index) {
+  Widget auxiliaryDisplay(String term) {
     // print(term);
     // print(nodeMap);
     // print("display");
@@ -1069,54 +1038,22 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           children: [
             Expanded(
                 child: GestureDetector(
-                    onTap: () async {
-                      if (index == 1) {
-                        if (!showSecond) {
-                          // Showing center
-                          setState(() {
-                            secondaryNode = auxNode;
-                            showSecond = true;
-                          });
-
-                          // First animate left container
-                          await Future.delayed(Duration(milliseconds: 400));
-
-                          // Then animate center
-                          _controller1.forward();
-                        } else {
-                          // Hiding center
-                          _controller1.reverse();
-
-                          await Future.delayed(Duration(milliseconds: 350));
-
-                          setState(() {
-                            showSecond = false;
-                          });
-                        }
-                      }
-                    },
                     onDoubleTap: () {
                       setState(() {
                         mainNode = nodeMap[term]!;
                       });
                     },
                     child: Card(
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(5)),
+                        shape: ContinuousRectangleBorder(),
                         color: Colors.white,
                         child: Container(
-                            // decoration: BoxDecoration(
-
-                            //     border: Border(
-                            //         left: BorderSide(
-                            //             width: 5,
-                            //             color:
-                            //                 colorFromString(auxNode.color)))),
                             decoration: BoxDecoration(
-                              border: Border.all(width: 1, color: Colors.black),
-                              borderRadius: BorderRadius.circular(15),
-                            ),
+                                border: Border(
+                                    left: BorderSide(
+                                        width: 5,
+                                        color:
+                                            colorFromString(auxNode.color)))),
+                            margin: EdgeInsets.only(right: 20),
                             padding: EdgeInsets.all(10),
                             child: auxNode.image == 1
                                 ? Image.file(File(term))
@@ -1540,51 +1477,8 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     });
   }
 
-  bool showSecond = false;
-  bool showCenter = false;
-  bool showRight = false;
-  double angle = 0.0;
-  final double radius = 180.0;
-  final List<String> items = [
-    "Testing 1",
-    "Roman Empire",
-    "Iron Age",
-    "Mediterranean",
-    "E",
-    "F",
-    "G",
-    "H",
-    "I"
-  ];
-
-  Offset _lastPosition = Offset.zero;
-
-  void _onPanUpdate(DragUpdateDetails details, Offset center) {
-    final touch = details.localPosition;
-
-    final double dx = touch.dx - center.dx;
-    final double dy = touch.dy - center.dy;
-
-    final double currentAngle = atan2(dy, dx);
-
-    final double dxLast = _lastPosition.dx - center.dx;
-    final double dyLast = _lastPosition.dy - center.dy;
-    final double lastAngle = atan2(dyLast, dxLast);
-
-    final delta = currentAngle - lastAngle;
-
-    setState(() {
-      angle += delta;
-    });
-
-    _lastPosition = touch;
-  }
-
-  Node? secondaryNode;
-
   @override
   Widget build(BuildContext context) {
-    double totalWidth = showCenter ? 800 : 800;
     return Shortcuts(
         shortcuts: <ShortcutActivator, Intent>{},
         child: Actions(
@@ -1892,8 +1786,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                         children: [
                                                           Container(
                                                             margin:
-                                                                const EdgeInsets
-                                                                    .only(
+                                                                EdgeInsets.only(
                                                                     bottom: 50),
                                                             child: Row(
                                                                 mainAxisAlignment:
@@ -1901,7 +1794,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                         .center,
                                                                 children: [
                                                                   Container(
-                                                                      constraints: const BoxConstraints(
+                                                                      constraints: BoxConstraints(
                                                                           maxWidth:
                                                                               500,
                                                                           minHeight:
@@ -1935,294 +1828,452 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                                           ? 22
                                                                                           : 30),
                                                                               mainNode.nodeTerm)),
-                                                                  Spacer(),
-                                                                  Listener(
-                                                                      onPointerSignal:
-                                                                          (event) {
-                                                                        if (event
-                                                                            is PointerScrollEvent) {
-                                                                          setState(
-                                                                              () {
-                                                                            angle +=
-                                                                                event.scrollDelta.dy * -0.01; // scroll up = rotate clockwise
-                                                                          });
-                                                                        }
-                                                                      },
-                                                                      child: Container(
-                                                                          decoration: BoxDecoration(border: Border.all(width: 1, color: Colors.black)),
-                                                                          width: 500,
-                                                                          height: 500,
-                                                                          child: LayoutBuilder(
-                                                                            builder:
-                                                                                (context, constraints) {
-                                                                              final Size size = constraints.biggest;
-                                                                              final Offset center = size.center(Offset.zero);
-
-                                                                              return ClipRect(
-                                                                                  child: Align(
-                                                                                      alignment: Alignment.centerLeft,
-                                                                                      widthFactor: 0.5, // Show only the left half
-                                                                                      child: GestureDetector(
-                                                                                        onPanStart: (details) => _lastPosition = details.localPosition,
-                                                                                        onPanUpdate: (details) => _onPanUpdate(details, center),
-                                                                                        child: SizedBox(
-                                                                                          width: size.width,
-                                                                                          height: size.height,
-                                                                                          child: Stack(
-                                                                                            children: [
-                                                                                              Positioned.fill(
-                                                                                                child: Container(
-                                                                                                  color: Colors.transparent, // ensures the area is hit-testable
-                                                                                                ),
-                                                                                              ),
-                                                                                              // Items around circle
-                                                                                              for (int i = 0; i < items.length; i++)
-                                                                                                Positioned(
-                                                                                                    left: center.dx + radius * cos(angle + i * 2 * pi / items.length) - 90,
-                                                                                                    top: center.dy + radius * sin(angle + i * 2 * pi / items.length) - 90,
-                                                                                                    child: Opacity(
-                                                                                                      opacity: (-radius * cos(angle + i * 2 * pi / items.length) / center.dx).clamp(0.0, 1.0),
-                                                                                                      child: Container(
-                                                                                                        width: 300,
-                                                                                                        height: 180,
-                                                                                                        alignment: Alignment.center,
-                                                                                                        decoration: BoxDecoration(
-                                                                                                          borderRadius: BorderRadius.circular(20),
-                                                                                                          color: Colors.blue,
-                                                                                                        ),
-                                                                                                        child: Text(items[i], style: TextStyle(color: Colors.white)),
-                                                                                                      ),
-                                                                                                    )),
-                                                                                              // Center dot
-                                                                                              Positioned(
-                                                                                                left: center.dx - 5,
-                                                                                                top: center.dy - 5,
-                                                                                                child: Container(
-                                                                                                  width: 200,
-                                                                                                  height: 10,
-                                                                                                  decoration: BoxDecoration(
-                                                                                                    color: Colors.red,
-                                                                                                  ),
-                                                                                                ),
-                                                                                              )
-                                                                                            ],
-                                                                                          ),
-                                                                                        ),
-                                                                                      )));
-                                                                            },
-                                                                          )))
+                                                                  Container(
+                                                                      color: Colors
+                                                                          .black,
+                                                                      height: 6,
+                                                                      width:
+                                                                          50),
+                                                                  Container(
+                                                                      decoration: BoxDecoration(
+                                                                          border: Border.all(
+                                                                              width:
+                                                                                  1,
+                                                                              color: Colors
+                                                                                  .black),
+                                                                          borderRadius: BorderRadius.circular(
+                                                                              40)),
+                                                                      child: IconButton(
+                                                                          style:
+                                                                              ButtonStyle(),
+                                                                          onPressed:
+                                                                              () {},
+                                                                          icon:
+                                                                              Icon(Icons.add)))
                                                                 ]),
                                                           )
                                                         ]))
-                                                : Stack(
-                                                    alignment:
-                                                        Alignment.centerLeft,
+                                                : Expanded(
+                                                    child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
-                                                        SizedBox(
-                                                            width:
-                                                                double.infinity,
-                                                            child:
-                                                                AnimatedAlign(
-                                                                    duration: Duration(
-                                                                        milliseconds:
-                                                                            400),
-                                                                    curve: Curves
-                                                                        .easeInOut,
-                                                                    alignment:
-                                                                        Alignment
-                                                                            .center,
-                                                                    child: SizedBox(
-                                                                        width: 1200,
-                                                                        child: Row(children: [
-                                                                          AnimatedSlide(
-                                                                              offset: showSecond ? Offset(0, 0) : Offset(0.25, 0),
-                                                                              duration: Duration(milliseconds: 600),
-                                                                              curve: Curves.easeInOut,
-                                                                              child: AnimatedAlign(
-                                                                                duration: Duration(milliseconds: 400),
-                                                                                curve: Curves.easeInOut,
-                                                                                alignment: Alignment.center,
-                                                                                child: SizedBox(
-                                                                                    width: totalWidth,
-                                                                                    child: Row(
-                                                                                      mainAxisAlignment: MainAxisAlignment.center,
-                                                                                      children: [
-                                                                                        AnimatedSlide(
-                                                                                            offset: showCenter ? Offset(0, 0) : Offset(showSecond ? 1 : 0.5, 0),
-                                                                                            duration: Duration(milliseconds: 600),
-                                                                                            curve: Curves.easeInOut,
-                                                                                            child: GestureDetector(
-                                                                                                onTap: () async {
-                                                                                                  if (!showCenter) {
-                                                                                                    // Showing center
-                                                                                                    setState(() {
-                                                                                                      showCenter = true;
-                                                                                                    });
-
-                                                                                                    // First animate left container
-                                                                                                    await Future.delayed(Duration(milliseconds: 400));
-
-                                                                                                    // Then animate center
-                                                                                                    _controller.forward();
-
-                                                                                                    if (showSecond) {
-                                                                                                      _controller1.forward();
-                                                                                                    }
-                                                                                                  } else {
-                                                                                                    // Hiding center
-
-                                                                                                    if (showSecond) {
-                                                                                                      _controller1.reverse();
-                                                                                                    }
-
-                                                                                                    _controller.reverse();
-
-                                                                                                    await Future.delayed(Duration(milliseconds: 350));
-
-                                                                                                    setState(() {
-                                                                                                      showCenter = false;
-                                                                                                    });
-                                                                                                  }
-                                                                                                },
-                                                                                                child: Stack(children: [
-                                                                                                  Column(children: [
-                                                                                                    Container(
-                                                                                                        constraints: BoxConstraints(
-                                                                                                          maxWidth: 400,
-                                                                                                        ),
-                                                                                                        padding: EdgeInsets.only(
-                                                                                                          right: 20,
-                                                                                                        ),
-                                                                                                        child: Stack(children: [
-                                                                                                          (
-                                                                                                              // Main node card
-                                                                                                              Container(
-                                                                                                                  decoration: BoxDecoration(
-                                                                                                                    borderRadius: BorderRadius.circular(20),
-                                                                                                                    border: Border.all(width: 1, color: Colors.black),
-                                                                                                                    color: Colors.white,
-                                                                                                                  ),
-                                                                                                                  alignment: Alignment.center,
-                                                                                                                  child: Container(padding: EdgeInsets.all(15), child: mainNode.image == 1 ? Image.file(File(mainNode.nodeTerm)) : Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25))))),
-                                                                                                          Container(
-                                                                                                              color: Color.fromARGB(0, 0, 0, 0),
-                                                                                                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                                                                                                              child: Row(
-                                                                                                                mainAxisAlignment: MainAxisAlignment.end,
-                                                                                                                children: [
-                                                                                                                  Spacer(),
-                                                                                                                  mainNodeHover
-                                                                                                                      ? Row(children: [
-                                                                                                                          IconButton(
-                                                                                                                              onPressed: () {
-                                                                                                                                removeNode();
-                                                                                                                              },
-                                                                                                                              icon: Icon(Icons.delete)),
-                                                                                                                          SizedBox(width: 10),
-                                                                                                                          IconButton(
-                                                                                                                            icon: Icon(Icons.edit),
-                                                                                                                            onPressed: () {
-                                                                                                                              setState(() {
-                                                                                                                                editingMode = true;
-                                                                                                                                editingModeCurrentNode = true;
-                                                                                                                                editingNode = mainNode;
-                                                                                                                                auxiliaryNodePriorEditList = mainNode.auxiliaries;
-                                                                                                                                mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                                                                editingModeTextUpload = mainNode.image == 0;
-                                                                                                                                editingModePhotoUploaded = mainNode.image == 1;
-                                                                                                                                auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 1 : -1, selected: false)).toList();
-                                                                                                                              });
-                                                                                                                            },
-                                                                                                                          )
-                                                                                                                        ])
-                                                                                                                      : SizedBox(height: 40)
-                                                                                                                ],
-                                                                                                              )),
-                                                                                                        ])),
-                                                                                                  ]),
-                                                                                                  // Top Gradient
-                                                                                                ]))),
-                                                                                        Expanded(
-                                                                                            child: ClipRect(
-                                                                                          child: SizedBox(
-                                                                                            width: 400, // Always reserve space
-                                                                                            child: AnimatedBuilder(
-                                                                                              animation: _controller,
-                                                                                              builder: (context, child) {
-                                                                                                return Opacity(
-                                                                                                  opacity: _fadeAnimation.value,
-                                                                                                  child: FractionalTranslation(
-                                                                                                    translation: Offset(0, _slideAnimation.value),
-                                                                                                    child: child,
-                                                                                                  ),
-                                                                                                );
-                                                                                              },
-                                                                                              child: Container(
-                                                                                                constraints: BoxConstraints(maxWidth: 400),
-                                                                                                child: ReorderableListView(
-                                                                                                  shrinkWrap: true,
-                                                                                                  physics: ClampingScrollPhysics(),
-                                                                                                  padding: const EdgeInsets.only(right: 10),
-                                                                                                  proxyDecorator: auxiliaryDisplayProxyDecorator,
-                                                                                                  onReorder: (int oldIndex, int newIndex) {
-                                                                                                    setState(() {
-                                                                                                      if (oldIndex < newIndex) newIndex -= 1;
-                                                                                                      if (oldIndex != newIndex) {
-                                                                                                        final term = mainNode.auxiliaries.removeAt(oldIndex);
-                                                                                                        mainNode.auxiliaries.insert(newIndex, term);
-                                                                                                      }
-                                                                                                    });
-                                                                                                  },
-                                                                                                  children: mainNode.auxiliaries.map((e) => auxiliaryDisplay(e, 1)).toList(),
-                                                                                                ),
-                                                                                              ),
-                                                                                            ),
-                                                                                          ),
-                                                                                        ))
-                                                                                      ],
-                                                                                    )),
-                                                                              )),
-                                                                          ClipRect(
-                                                                            child:
-                                                                                SizedBox(
-                                                                              width: 400, // Always reserve space
-                                                                              child: AnimatedBuilder(
-                                                                                animation: _controller1,
-                                                                                builder: (context, child) {
-                                                                                  return Opacity(
-                                                                                    opacity: _fadeAnimation1.value,
-                                                                                    child: FractionalTranslation(
-                                                                                      translation: Offset(0, _slideAnimation1.value),
-                                                                                      child: child,
-                                                                                    ),
-                                                                                  );
-                                                                                },
-                                                                                child: Container(
-                                                                                  constraints: BoxConstraints(maxWidth: 400),
-                                                                                  child: ReorderableListView(
-                                                                                    shrinkWrap: true,
-                                                                                    physics: ClampingScrollPhysics(),
-                                                                                    padding: const EdgeInsets.only(right: 10),
-                                                                                    proxyDecorator: auxiliaryDisplayProxyDecorator,
-                                                                                    onReorder: (int oldIndex, int newIndex) {
-                                                                                      setState(() {
-                                                                                        if (secondaryNode == null) return;
-                                                                                        if (oldIndex < newIndex) newIndex -= 1;
-                                                                                        if (oldIndex != newIndex) {
-                                                                                          final term = secondaryNode!.auxiliaries.removeAt(oldIndex);
-                                                                                          secondaryNode!.auxiliaries.insert(newIndex, term);
-                                                                                        }
-                                                                                      });
-                                                                                    },
-                                                                                    children: secondaryNode == null ? [] : secondaryNode!.auxiliaries.map((e) => auxiliaryDisplay(e, 2)).toList(),
-                                                                                  ),
-                                                                                ),
-                                                                              ),
+                                                      Column(children: [
+                                                        Expanded(
+                                                            child: MouseRegion(
+                                                          onEnter: (details) =>
+                                                              setState(() =>
+                                                                  mainNodeHover =
+                                                                      true),
+                                                          onExit: (details) =>
+                                                              setState(() {
+                                                            mainNodeHover =
+                                                                false;
+                                                          }),
+                                                          child: Container(
+                                                              constraints: BoxConstraints(
+                                                                  minWidth: MediaQuery.sizeOf(context).width <
+                                                                          900
+                                                                      ? MediaQuery.sizeOf(context)
+                                                                              .width /
+                                                                          2
+                                                                      : MediaQuery.sizeOf(context)
+                                                                              .width /
+                                                                          2.5,
+                                                                  maxWidth: MediaQuery.sizeOf(context)
+                                                                              .width <
+                                                                          900
+                                                                      ? MediaQuery.sizeOf(context)
+                                                                              .width /
+                                                                          2
+                                                                      : MediaQuery.sizeOf(context)
+                                                                              .width /
+                                                                          2.5),
+                                                              padding:
+                                                                  EdgeInsets
+                                                                      .only(
+                                                                right: 20,
+                                                              ),
+                                                              child: Stack(
+                                                                  children: [
+                                                                    (
+                                                                        // Main node card
+                                                                        Container(
+                                                                            decoration:
+                                                                                BoxDecoration(
+                                                                              border: Border.all(width: 1, color: Colors.black),
+                                                                              color: Colors.white,
                                                                             ),
-                                                                          )
-                                                                        ]))))
-                                                      ])
+                                                                            alignment:
+                                                                                Alignment.center,
+                                                                            child: Container(padding: EdgeInsets.all(15), child: mainNode.image == 1 ? Image.file(File(mainNode.nodeTerm)) : Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25))))),
+                                                                    Container(
+                                                                        color: Color.fromARGB(
+                                                                            0,
+                                                                            0,
+                                                                            0,
+                                                                            0),
+                                                                        padding: const EdgeInsets
+                                                                            .symmetric(
+                                                                            vertical:
+                                                                                8,
+                                                                            horizontal:
+                                                                                12),
+                                                                        child:
+                                                                            Row(
+                                                                          mainAxisAlignment:
+                                                                              MainAxisAlignment.end,
+                                                                          children: [
+                                                                            nodeMasterySelectButton(),
+                                                                            Spacer(),
+                                                                            mainNodeHover
+                                                                                ? Row(children: [
+                                                                                    IconButton(
+                                                                                        onPressed: () {
+                                                                                          removeNode();
+                                                                                        },
+                                                                                        icon: Icon(Icons.delete)),
+                                                                                    SizedBox(width: 10),
+                                                                                    IconButton(
+                                                                                      icon: Icon(Icons.edit),
+                                                                                      onPressed: () {
+                                                                                        setState(() {
+                                                                                          editingMode = true;
+                                                                                          editingModeCurrentNode = true;
+                                                                                          editingNode = mainNode;
+                                                                                          auxiliaryNodePriorEditList = mainNode.auxiliaries;
+                                                                                          mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
+                                                                                          editingModeTextUpload = mainNode.image == 0;
+                                                                                          editingModePhotoUploaded = mainNode.image == 1;
+                                                                                          auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 1 : -1, selected: false)).toList();
+                                                                                        });
+                                                                                      },
+                                                                                    )
+                                                                                  ])
+                                                                                : SizedBox(height: 40)
+                                                                          ],
+                                                                        )),
+                                                                  ])),
+                                                        ))
+                                                      ]),
+                                                      Expanded(
+                                                          child: Container(
+                                                        decoration: BoxDecoration(
+                                                            border: Border.all(
+                                                                width: 1,
+                                                                color: Colors
+                                                                    .black)),
+                                                        padding:
+                                                            EdgeInsets.only(
+                                                                left: 10,
+                                                                top: 10,
+                                                                bottom: 10),
+                                                        child:
+                                                            ReorderableListView(
+                                                                shrinkWrap:
+                                                                    true,
+                                                                physics:
+                                                                    ClampingScrollPhysics(),
+                                                                padding:
+                                                                    const EdgeInsets
+                                                                        .only(
+                                                                        right:
+                                                                            10),
+                                                                proxyDecorator:
+                                                                    auxiliaryDisplayProxyDecorator,
+                                                                onReorder: (int
+                                                                        oldIndex,
+                                                                    int
+                                                                        newIndex) {
+                                                                  setState(() {
+                                                                    if (oldIndex <
+                                                                        newIndex) {
+                                                                      newIndex -=
+                                                                          1;
+                                                                    }
+
+                                                                    if (oldIndex !=
+                                                                        newIndex) {
+                                                                      String
+                                                                          term =
+                                                                          mainNode
+                                                                              .auxiliaries[oldIndex];
+
+                                                                      mainNode.auxiliaries[
+                                                                          oldIndex] = mainNode
+                                                                              .auxiliaries[
+                                                                          newIndex];
+                                                                      mainNode.auxiliaries[
+                                                                              newIndex] =
+                                                                          term;
+                                                                    }
+                                                                  });
+                                                                },
+                                                                children: mainNode
+                                                                    .auxiliaries
+                                                                    .map((e) =>
+                                                                        auxiliaryDisplay(
+                                                                            e))
+                                                                    .toList()),
+                                                      ))
+                                                    ],
+                                                  )),
+                                            SizedBox(height: 20),
                                           ])))
                         ]))))));
   }
 }
+
+
+
+// Container(
+                                                          //     color: Colors
+                                                          //         .transparent,
+                                                          //     padding:
+                                                          //         const EdgeInsets
+                                                          //             .symmetric(
+                                                          //             vertical:
+                                                          //                 8,
+                                                          //             horizontal:
+                                                          //                 12),
+                                                          //     child: Row(
+                                                          //       mainAxisAlignment:
+                                                          //           MainAxisAlignment
+                                                          //               .end,
+                                                          //       children: [
+                                                          //         nodeMasterySelectButton(),
+                                                          //         Spacer(),
+                                                          //         mainNodeHover
+                                                          //             ? Row(
+                                                          //                 children: [
+                                                          //                     IconButton(
+                                                          //                         onPressed: () {
+                                                          //                           removeNode();
+                                                          //                         },
+                                                          //                         icon: Icon(Icons.delete)),
+                                                          //                     SizedBox(width: 10),
+                                                          //                     IconButton(
+                                                          //                       icon: Icon(Icons.edit),
+                                                          //                       onPressed: () {
+                                                          //                         setState(() {
+                                                          //                           editingMode = true;
+                                                          //                           editingModeCurrentNode = true;
+                                                          //                           editingNode = mainNode;
+                                                          //                           auxiliaryNodePriorEditList = mainNode.auxiliaries;
+                                                          //                           mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
+                                                          //                           editingModeTextUpload = mainNode.image == 0;
+                                                          //                           editingModePhotoUploaded = mainNode.image == 1;
+                                                          //                           auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 1 : -1, selected: false)).toList();
+                                                          //                         });
+                                                          //                       },
+                                                          //                     )
+                                                          //                   ])
+                                                          //             : SizedBox(
+                                                          //                 height:
+                                                          //                     40),
+                                                          //   ],
+                                                          // )),
+
+
+/*ExpansionTileCard(
+                                              onExpansionChanged: (value) {
+                                                setState(() {
+                                                  bottomDisplayOpen = value;
+                                                });
+                                                if (value) {
+                                                  setBottomDisplayScrollPosition();
+                                                }
+                                              },
+                                              title: Row(
+                                                children: [
+                                                  SizedBox(width: 46),
+                                                  Container(
+                                                      decoration: BoxDecoration(
+                                                          border: Border.all(
+                                                              width: 1,
+                                                              color:
+                                                                  Colors.black),
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          color: Colors.white),
+                                                      child: IconButton(
+                                                          color: Colors.white,
+                                                          onPressed: () {
+                                                            int setIndex =
+                                                                nodeIdMap[
+                                                                    mainNode
+                                                                        .id]!;
+                                                            if (setIndex == 0) {
+                                                              setIndex =
+                                                                  nodeIdMap
+                                                                      .values
+                                                                      .last;
+                                                            } else {
+                                                              setIndex--;
+                                                            }
+                                                            setState(() {
+                                                              mainNode =
+                                                                  nodeList[
+                                                                      setIndex];
+                                                            });
+
+                                                            if (!bottomDisplayOpen) {
+                                                              return;
+                                                            }
+
+                                                            if (nodeList
+                                                                    .length >=
+                                                                36) {
+                                                              bottomDisplayScrollController1
+                                                                  .animateTo(
+                                                                MediaQuery.sizeOf(context)
+                                                                            .width >
+                                                                        820
+                                                                    ? 540
+                                                                    : 660,
+                                                                duration:
+                                                                    Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                curve: Curves
+                                                                    .fastOutSlowIn,
+                                                              );
+                                                            } else {
+                                                              int divide =
+                                                                  MediaQuery.sizeOf(context)
+                                                                              .width >
+                                                                          820
+                                                                      ? 4
+                                                                      : 3;
+                                                              int
+                                                                  offset =
+                                                                  (nodeIdMap[mainNode
+                                                                          .id]!) ~/
+                                                                      divide *
+                                                                      (120 +
+                                                                          15);
+                                                              bottomDisplayScrollController1
+                                                                  .animateTo(
+                                                                offset
+                                                                    .toDouble(),
+                                                                duration:
+                                                                    Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                curve: Curves
+                                                                    .fastOutSlowIn,
+                                                              );
+                                                            }
+                                                          },
+                                                          icon: const Icon(
+                                                              color:
+                                                                  Colors.black,
+                                                              Icons
+                                                                  .arrow_left))),
+                                                  Spacer(),
+                                                  Text(
+                                                      "${nodeIdMap[mainNode.id]! + 1}/${nodeList.length}"),
+                                                  Spacer(),
+                                                  Container(
+                                                      decoration: BoxDecoration(
+                                                          border: Border.all(
+                                                              width: 1,
+                                                              color:
+                                                                  Colors.black),
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          color: Colors.white),
+                                                      child: IconButton(
+                                                          color: Colors.white,
+                                                          onPressed: () {
+                                                            int setIndex =
+                                                                nodeIdMap[
+                                                                    mainNode
+                                                                        .id]!;
+                                                            print(setIndex);
+                                                            if (setIndex ==
+                                                                nodeIdMap.values
+                                                                    .last) {
+                                                              setIndex = 0;
+                                                            } else {
+                                                              setIndex++;
+                                                            }
+                                                            print(setIndex);
+                                                            setState(() {
+                                                              mainNode =
+                                                                  nodeList[
+                                                                      setIndex];
+                                                              // print(mainNode
+                                                              //     .auxiliaries);
+                                                              // print(mainNode
+                                                              //     .nodeTerm);
+                                                            });
+                                                            if (!bottomDisplayOpen) {
+                                                              return;
+                                                            }
+
+                                                            if (nodeList
+                                                                    .length >=
+                                                                36) {
+                                                              bottomDisplayScrollController1
+                                                                  .animateTo(
+                                                                MediaQuery.sizeOf(context)
+                                                                            .width >
+                                                                        820
+                                                                    ? 540
+                                                                    : 660,
+                                                                duration:
+                                                                    Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                curve: Curves
+                                                                    .fastOutSlowIn,
+                                                              );
+                                                            } else {
+                                                              int divide =
+                                                                  MediaQuery.sizeOf(context)
+                                                                              .width >
+                                                                          820
+                                                                      ? 4
+                                                                      : 3;
+                                                              int offset =
+                                                                  (nodeIdMap[mainNode
+                                                                              .id]! -
+                                                                          1) ~/
+                                                                      divide *
+                                                                      (120 +
+                                                                          15);
+                                                              bottomDisplayScrollController1
+                                                                  .animateTo(
+                                                                offset
+                                                                    .toDouble(),
+                                                                duration:
+                                                                    Duration(
+                                                                        seconds:
+                                                                            2),
+                                                                curve: Curves
+                                                                    .fastOutSlowIn,
+                                                              );
+                                                            }
+                                                          },
+                                                          icon: const Icon(
+                                                              color:
+                                                                  Colors.black,
+                                                              Icons
+                                                                  .arrow_right)))
+                                                ],
+                                              ),
+                                              children: [
+                                                Container(
+                                                    padding: EdgeInsets.all(20),
+                                                    height: MediaQuery.sizeOf(
+                                                                context)
+                                                            .height -
+                                                        395,
+                                                    child: bottomScrollDisplay(
+                                                        context,
+                                                        bottomDisplayScrollController1))
+                                              ],
+                                            ),
+                                            */

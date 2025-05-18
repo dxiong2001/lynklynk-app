@@ -98,6 +98,8 @@ class _Dashboard extends State<Dashboard> {
 
   bool appMaximized = false;
 
+  bool validNewConstellationName = true;
+
   //List of files in directory
 
   final _formKey = GlobalKey<FormState>();
@@ -754,426 +756,305 @@ class _Dashboard extends State<Dashboard> {
                     ),
                   ))),
         ),
-        body: loading
-            ? Container(
-                color: dashboardColor,
-                child: Center(
-                    child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const Text(
-                      'Lynk',
-                      style: TextStyle(
-                          fontSize: 50.0,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    DefaultTextStyle(
-                      style: const TextStyle(
-                        fontSize: 50.0,
-                        fontWeight: FontWeight.w200,
-                      ),
-                      child: AnimatedTextKit(
-                        isRepeatingAnimation: false,
-                        animatedTexts: [
-                          RotateAnimatedText('Lynk ',
-                              duration: const Duration(milliseconds: 1000),
-                              rotateOut: false),
-                        ],
-                      ),
-                    ),
-                  ],
-                )))
-            : AnimatedOpacity(
-                opacity: visible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 500),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color:
-                        Color.fromARGB(251, 255, 255, 255), // Background color
-                  ),
-                  padding: EdgeInsets.only(bottom: 10, right: 10, left: 10),
-                  child: Expanded(
-                      child: Padding(
-                          padding: const EdgeInsets.only(left: 25),
-                          child: ListView(
-                              // mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 20),
-                                Row(
-                                    mainAxisAlignment: MainAxisAlignment.start,
-                                    children: [
-                                      Tooltip(
-                                          margin:
-                                              const EdgeInsets.only(bottom: 20),
-                                          preferBelow: false,
-                                          message: 'Create a study file',
-                                          child: Container(
-                                              height: 80,
-                                              width: 80,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                    width: 1,
-                                                    color: Colors.black),
-                                              ),
-                                              child: IconButton(
-                                                  color: Colors.white,
-                                                  icon: const Icon(Icons.add,
-                                                      color: Colors.black),
-                                                  iconSize: 30,
-                                                  style: IconButton.styleFrom(
-                                                    shape:
-                                                        RoundedRectangleBorder(
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        40)),
-                                                  ),
-                                                  onPressed: () {
-                                                    showModalBottomSheet<void>(
-                                                      isScrollControlled: true,
-                                                      backgroundColor:
-                                                          Colors.transparent,
-                                                      context: context,
-                                                      enableDrag: true,
-                                                      shape:
-                                                          RoundedRectangleBorder(
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          10)),
-                                                      builder: (BuildContext
-                                                          context) {
-                                                        return Column(
-                                                          mainAxisAlignment:
-                                                              MainAxisAlignment
-                                                                  .end,
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: <Widget>[
-                                                            FractionallySizedBox(
-                                                              widthFactor: 1,
-                                                              child: Form(
-                                                                key: _formKey,
-                                                                child: Stack(
-                                                                  alignment:
-                                                                      Alignment
-                                                                          .center,
-                                                                  children: <Widget>[
-                                                                    Container(
-                                                                        height:
-                                                                            400,
-                                                                        margin: EdgeInsets.only(
-                                                                            bottom:
-                                                                                150),
-                                                                        decoration:
-                                                                            BoxDecoration(
-                                                                          borderRadius:
-                                                                              BorderRadius.only(
-                                                                            bottomRight:
-                                                                                Radius.circular(40),
-                                                                          ),
-                                                                          color:
-                                                                              dashboardColor,
-                                                                          border: Border.all(
-                                                                              width: 2,
-                                                                              color: Colors.black),
-                                                                        ),
-                                                                        child:
-                                                                            Column(
-                                                                          children: [
-                                                                            Container(
-                                                                                decoration: BoxDecoration(color: primary2, border: Border(bottom: BorderSide(width: 2, color: Colors.black))),
-                                                                                constraints: BoxConstraints(maxHeight: 40),
-                                                                                child: Row(
-                                                                                  children: [
-                                                                                    Spacer(),
-                                                                                    Container(
-                                                                                      alignment: Alignment.center,
-                                                                                      height: 24,
-                                                                                      width: 24,
-                                                                                      margin: EdgeInsets.all(8),
-                                                                                      decoration: BoxDecoration(color: const Color.fromARGB(255, 240, 159, 154), border: Border.all(width: 2, color: Colors.black), shape: BoxShape.circle),
-                                                                                      child: IconButton(
-                                                                                        padding: EdgeInsets.zero,
-                                                                                        color: Colors.white,
-                                                                                        icon: Icon(size: 14, Icons.clear),
-                                                                                        onPressed: () => Navigator.pop(context),
-                                                                                      ),
-                                                                                    )
-                                                                                  ],
-                                                                                )),
-                                                                            SizedBox(height: 50),
-                                                                            Container(
-                                                                              padding: EdgeInsets.all(20),
-                                                                              child: TextFormField(
-                                                                                controller: newConstellationNameController,
-
-                                                                                // The validator receives the text that the user has entered.
-                                                                                validator: (value) {
-                                                                                  if ((value == null || value.isEmpty)) {
-                                                                                    return 'Please enter some text';
-                                                                                  }
-                                                                                  if (_validateFileName(value)) {
-                                                                                    return 'File name already exists';
-                                                                                  }
-                                                                                  return null;
-                                                                                },
-                                                                              ),
-                                                                            ),
-                                                                            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                                                              TextButton(
-                                                                                onPressed: () async {
-                                                                                  if (_formKey.currentState!.validate()) {
-                                                                                    _formKey.currentState?.save();
-                                                                                    String constellationName = newConstellationNameController.text;
-                                                                                    print(constellationName);
-
-                                                                                    setState(() {
-                                                                                      newConstellationNameController = TextEditingController();
-                                                                                    });
-
-                                                                                    String currentDateTime = DateTime.now().toString();
-                                                                                    int id = directoryFiles.isEmpty ? 0 : directoryFiles.last.id + 1;
-                                                                                    await insertDBFile(DBFile(id: id, filePath: "$directoryName/$constellationName.txt", fileName: constellationName, createDate: currentDateTime, accessDate: currentDateTime, updateDate: currentDateTime, tags: [], starred: 0, existingFile: 0));
-
-                                                                                    if (context.mounted) {
-                                                                                      Navigator.pop(context);
-                                                                                      Navigator.push(
-                                                                                        context,
-                                                                                        MaterialPageRoute(builder: (context) => Test(id: id, constellationName: constellationName)
-                                                                                            // Editor(path: "$directoryName/$constellationName.txt", isPath: true, fileName: constellationName)
-                                                                                            ),
-                                                                                      );
-                                                                                    }
-                                                                                  }
-                                                                                },
-                                                                                child: const Text('Create'),
-                                                                              ),
-                                                                              const SizedBox(width: 5),
-                                                                            ]),
-                                                                          ],
-                                                                        )),
-                                                                    Container(
-                                                                      decoration: BoxDecoration(
-                                                                          color: Colors
-                                                                              .white,
-                                                                          border: Border.all(
-                                                                              width: 2.5,
-                                                                              color: Colors.black),
-                                                                          borderRadius: BorderRadius.all(Radius.circular(50))),
-                                                                      margin: EdgeInsets.only(
-                                                                          bottom:
-                                                                              470),
-                                                                      child: Icon(
-                                                                          size:
-                                                                              50,
-                                                                          Pelaicons
-                                                                              .upload1LightOutline),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        );
-                                                      },
-                                                    );
-                                                  }))),
-                                      const SizedBox(
-                                        width: 25,
+        body: AnimatedOpacity(
+          opacity: visible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 500),
+          child: Container(
+              decoration: const BoxDecoration(
+                color: Color.fromARGB(251, 255, 255, 255), // Background color
+              ),
+              padding: EdgeInsets.only(bottom: 10, right: 10, left: 10),
+              child: Padding(
+                  padding: const EdgeInsets.only(left: 25),
+                  child: ListView(
+                      // mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              Tooltip(
+                                  margin: const EdgeInsets.only(bottom: 20),
+                                  preferBelow: false,
+                                  message: 'Create a study file',
+                                  child: Container(
+                                      height: 80,
+                                      width: 80,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            width: 1, color: Colors.black),
                                       ),
-                                      Tooltip(
-                                          margin: EdgeInsets.only(bottom: 20),
-                                          preferBelow: false,
-                                          message: 'Upload a study file',
-                                          child: Container(
-                                              height: 80,
-                                              width: 80,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                    width: 1,
-                                                    color: Colors.black),
-                                              ),
-                                              child: IconButton(
-                                                  color: Colors.white,
-                                                  icon: const Icon(
-                                                      color: Colors.black,
-                                                      Icons.arrow_upward_sharp),
-                                                  iconSize: 30,
-                                                  style: IconButton.styleFrom(
-                                                    shape:
-                                                        RoundedRectangleBorder(
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        40)),
-                                                  ),
-                                                  onPressed: () async {
-                                                    FilePickerResult?
-                                                        fileUploadResult =
-                                                        await FilePicker
-                                                            .platform
-                                                            .pickFiles(
-                                                      type: FileType.custom,
-                                                      allowedExtensions: [
-                                                        'txt',
-                                                        'pdf',
-                                                        'doc'
-                                                      ],
-                                                    );
+                                      child: IconButton(
+                                          color: Colors.white,
+                                          icon: const Icon(Icons.add,
+                                              color: Colors.black),
+                                          iconSize: 30,
+                                          style: IconButton.styleFrom(
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(40)),
+                                          ),
+                                          onPressed: () {
+                                            validNewConstellationName = true;
+                                            newConstellationNameController
+                                                .text = "";
+                                            showDialog(
+                                                context: context,
+                                                barrierDismissible: true, //
 
-                                                    if (fileUploadResult ==
-                                                        null) {
-                                                      return;
-                                                    }
-                                                    String defaultFileName =
-                                                        './samples/test.txt';
-                                                    String fileNameMaintain =
-                                                        defaultFileName;
-                                                    for (int i = 0;
-                                                        i <
-                                                            fileUploadResult
-                                                                .paths.length;
-                                                        i++) {
-                                                      String filePath =
-                                                          fileUploadResult
-                                                                  .paths[i] ??
-                                                              "./samples/test.txt";
-                                                      String fileName =
-                                                          (fileUploadResult
-                                                                          .names[
-                                                                      i] ??
-                                                                  "test.txt")
-                                                              .split(".")[0];
+                                                builder:
+                                                    (BuildContext context) {
+                                                  return StatefulBuilder(
+                                                    builder:
+                                                        (context, setState) {
+                                                      return Transform
+                                                          .translate(
+                                                              offset: Offset(
+                                                                  0, -100),
+                                                              child: Dialog(
+                                                                backgroundColor:
+                                                                    Colors
+                                                                        .transparent,
+                                                                child: Form(
+                                                                  key: _formKey,
+                                                                  child: Stack(
+                                                                      children: [
+                                                                        Container(
+                                                                          width:
+                                                                              480,
+                                                                          decoration:
+                                                                              BoxDecoration(
+                                                                            borderRadius:
+                                                                                const BorderRadius.all(
+                                                                              Radius.circular(10),
+                                                                            ),
+                                                                            color:
+                                                                                dashboardColor,
+                                                                            border:
+                                                                                Border.all(width: 1, color: Colors.black),
+                                                                          ),
+                                                                          child:
+                                                                              Container(
+                                                                            width:
+                                                                                460,
+                                                                            padding:
+                                                                                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                                            child:
+                                                                                TextFormField(
+                                                                              onChanged: (value) => {
+                                                                                setState(() {
+                                                                                  validNewConstellationName = true;
+                                                                                })
+                                                                              },
+                                                                              autofocus: true,
+                                                                              controller: newConstellationNameController,
+                                                                              decoration: const InputDecoration(hintText: "New Constellation", border: InputBorder.none, icon: Icon(Icons.add)),
+                                                                              onFieldSubmitted: (value) async {
+                                                                                _formKey.currentState?.save();
 
-                                                      String validFileName =
-                                                          _validFileName(
-                                                              fileName);
-                                                      setState(() {
-                                                        fileNameList
-                                                            .add(validFileName);
-                                                        newConstellationNameController =
-                                                            TextEditingController(
-                                                                text: _validFileName(
-                                                                    "Constellation"));
-                                                      });
-                                                      if (i == 0) {
-                                                        fileNameMaintain =
-                                                            validFileName;
-                                                      }
+                                                                                if (value.isEmpty || _validateFileName(value)) {
+                                                                                  setState(() {
+                                                                                    validNewConstellationName = false;
+                                                                                  });
+                                                                                  return;
+                                                                                }
+                                                                                String constellationName = value;
 
-                                                      String currentDateTime =
-                                                          DateTime.now()
-                                                              .toString();
-                                                      await insertDBFile(DBFile(
-                                                          id:
-                                                              directoryFiles
-                                                                      .isEmpty
-                                                                  ? 0
-                                                                  : directoryFiles
-                                                                          .last
-                                                                          .id +
-                                                                      1,
-                                                          filePath: filePath,
-                                                          fileName:
-                                                              validFileName,
-                                                          createDate:
-                                                              currentDateTime,
-                                                          accessDate:
-                                                              currentDateTime,
-                                                          updateDate:
-                                                              currentDateTime,
-                                                          tags: [],
-                                                          starred: 0,
-                                                          existingFile: 1));
-                                                    }
+                                                                                setState(() {
+                                                                                  newConstellationNameController = TextEditingController();
+                                                                                });
 
-                                                    print(
-                                                        "file upload result: $fileUploadResult");
-                                                  }))),
-                                    ]),
-                                Container(
-                                    margin: EdgeInsets.only(top: 20),
-                                    child: Row(children: [
-                                      Text("Constellations",
-                                          style: TextStyle(
+                                                                                String currentDateTime = DateTime.now().toString();
+                                                                                int id = directoryFiles.isEmpty ? 0 : directoryFiles.last.id + 1;
+                                                                                await insertDBFile(DBFile(id: id, filePath: "$directoryName/$constellationName.txt", fileName: constellationName, createDate: currentDateTime, accessDate: currentDateTime, updateDate: currentDateTime, tags: [], starred: 0, existingFile: 0));
+
+                                                                                if (context.mounted) {
+                                                                                  Navigator.pop(context);
+                                                                                  Navigator.push(
+                                                                                    context,
+                                                                                    MaterialPageRoute(builder: (context) => Test(id: id, constellationName: constellationName)
+                                                                                        // Editor(path: "$directoryName/$constellationName.txt", isPath: true, fileName: constellationName)
+                                                                                        ),
+                                                                                  );
+                                                                                }
+                                                                              },
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                        Container(
+                                                                            margin:
+                                                                                EdgeInsets.only(top: 70, left: 5),
+                                                                            child: Text(style: TextStyle(color: Colors.white), validNewConstellationName ? "" : "Invalid constellation name"))
+                                                                      ]),
+                                                                ),
+                                                              ));
+                                                    },
+                                                  );
+                                                });
+                                          }))),
+                              const SizedBox(
+                                width: 25,
+                              ),
+                              Tooltip(
+                                  margin: EdgeInsets.only(bottom: 20),
+                                  preferBelow: false,
+                                  message: 'Upload a study file',
+                                  child: Container(
+                                      height: 80,
+                                      width: 80,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            width: 1, color: Colors.black),
+                                      ),
+                                      child: IconButton(
+                                          color: Colors.white,
+                                          icon: const Icon(
                                               color: Colors.black,
-                                              fontSize: 25)),
-                                    ])),
-                                directoryFilesStarredOrdered.isNotEmpty
-                                    ? Container(
-                                        margin: EdgeInsets.only(
-                                            right: 30, bottom: 15, top: 10),
-                                        child: GridView.builder(
-                                            gridDelegate:
-                                                SliverGridDelegateWithFixedCrossAxisCount(
-                                              crossAxisCount: MediaQuery.sizeOf(
-                                                              context)
-                                                          .width >
-                                                      1200
-                                                  ? 4
-                                                  : MediaQuery.sizeOf(context)
-                                                              .width >
-                                                          800
-                                                      ? 3
-                                                      : 2,
-                                              childAspectRatio: 1.0,
-                                              crossAxisSpacing: 15,
-                                              mainAxisSpacing: 15,
-                                              mainAxisExtent: 300,
-                                            ),
-                                            shrinkWrap: true,
-                                            itemCount:
-                                                directoryFilesStarredOrdered
-                                                    .length,
-                                            itemBuilder: (BuildContext context,
-                                                int index) {
-                                              return dashboardConstellationCard(
-                                                  directoryFilesStarredOrdered[
-                                                      index],
-                                                  context);
-                                            }))
-                                    : const SizedBox(),
-                                directoryFilesStarredOrdered.isNotEmpty
-                                    ? Divider()
-                                    : SizedBox(),
-                                Container(
-                                    margin: EdgeInsets.only(right: 30, top: 15),
-                                    child: GridView.builder(
-                                        gridDelegate:
-                                            SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount:
-                                              MediaQuery.sizeOf(context).width >
-                                                      1200
-                                                  ? 4
-                                                  : MediaQuery.sizeOf(context)
-                                                              .width >
-                                                          900
-                                                      ? 3
-                                                      : 2,
-                                          childAspectRatio: 1.0,
-                                          crossAxisSpacing: 15,
-                                          mainAxisSpacing: 15,
-                                          mainAxisExtent: 300,
-                                        ),
-                                        scrollDirection: Axis.vertical,
-                                        shrinkWrap: true,
-                                        controller: scroller,
-                                        itemCount:
-                                            directoryFilesUnstarredOrdered
-                                                .length,
-                                        itemBuilder:
-                                            (BuildContext context, int index) {
-                                          return dashboardConstellationCard(
-                                              directoryFilesUnstarredOrdered[
-                                                  index],
-                                              context);
-                                        })),
-                                SizedBox(height: 20)
-                              ]))),
-                )));
+                                              Icons.arrow_upward_sharp),
+                                          iconSize: 30,
+                                          style: IconButton.styleFrom(
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(40)),
+                                          ),
+                                          onPressed: () async {
+                                            FilePickerResult? fileUploadResult =
+                                                await FilePicker.platform
+                                                    .pickFiles(
+                                              type: FileType.custom,
+                                              allowedExtensions: [
+                                                'txt',
+                                                'pdf',
+                                                'doc'
+                                              ],
+                                            );
+
+                                            if (fileUploadResult == null) {
+                                              return;
+                                            }
+                                            String defaultFileName =
+                                                './samples/test.txt';
+                                            String fileNameMaintain =
+                                                defaultFileName;
+                                            for (int i = 0;
+                                                i <
+                                                    fileUploadResult
+                                                        .paths.length;
+                                                i++) {
+                                              String filePath =
+                                                  fileUploadResult.paths[i] ??
+                                                      "./samples/test.txt";
+                                              String fileName =
+                                                  (fileUploadResult.names[i] ??
+                                                          "test.txt")
+                                                      .split(".")[0];
+
+                                              String validFileName =
+                                                  _validFileName(fileName);
+                                              setState(() {
+                                                fileNameList.add(validFileName);
+                                                newConstellationNameController =
+                                                    TextEditingController(
+                                                        text: _validFileName(
+                                                            "Constellation"));
+                                              });
+                                              if (i == 0) {
+                                                fileNameMaintain =
+                                                    validFileName;
+                                              }
+
+                                              String currentDateTime =
+                                                  DateTime.now().toString();
+                                              await insertDBFile(DBFile(
+                                                  id: directoryFiles.isEmpty
+                                                      ? 0
+                                                      : directoryFiles.last.id +
+                                                          1,
+                                                  filePath: filePath,
+                                                  fileName: validFileName,
+                                                  createDate: currentDateTime,
+                                                  accessDate: currentDateTime,
+                                                  updateDate: currentDateTime,
+                                                  tags: [],
+                                                  starred: 0,
+                                                  existingFile: 1));
+                                            }
+
+                                            print(
+                                                "file upload result: $fileUploadResult");
+                                          }))),
+                            ]),
+                        Container(
+                            margin: EdgeInsets.only(top: 20),
+                            child: Row(children: [
+                              Text("Constellations",
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 25)),
+                            ])),
+                        directoryFilesStarredOrdered.isNotEmpty
+                            ? Container(
+                                margin: EdgeInsets.only(
+                                    right: 30, bottom: 15, top: 10),
+                                child: GridView.builder(
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: MediaQuery.sizeOf(context)
+                                                  .width >
+                                              1200
+                                          ? 4
+                                          : MediaQuery.sizeOf(context).width >
+                                                  800
+                                              ? 3
+                                              : 2,
+                                      childAspectRatio: 1.0,
+                                      crossAxisSpacing: 15,
+                                      mainAxisSpacing: 15,
+                                      mainAxisExtent: 300,
+                                    ),
+                                    shrinkWrap: true,
+                                    itemCount:
+                                        directoryFilesStarredOrdered.length,
+                                    itemBuilder:
+                                        (BuildContext context, int index) {
+                                      return dashboardConstellationCard(
+                                          directoryFilesStarredOrdered[index],
+                                          context);
+                                    }))
+                            : const SizedBox(),
+                        directoryFilesStarredOrdered.isNotEmpty
+                            ? Divider()
+                            : SizedBox(),
+                        Container(
+                            margin: EdgeInsets.only(right: 30, top: 15),
+                            child: GridView.builder(
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: MediaQuery.sizeOf(context)
+                                              .width >
+                                          1200
+                                      ? 4
+                                      : MediaQuery.sizeOf(context).width > 900
+                                          ? 3
+                                          : 2,
+                                  childAspectRatio: 1.0,
+                                  crossAxisSpacing: 15,
+                                  mainAxisSpacing: 15,
+                                  mainAxisExtent: 300,
+                                ),
+                                scrollDirection: Axis.vertical,
+                                shrinkWrap: true,
+                                controller: scroller,
+                                itemCount:
+                                    directoryFilesUnstarredOrdered.length,
+                                itemBuilder: (BuildContext context, int index) {
+                                  return dashboardConstellationCard(
+                                      directoryFilesUnstarredOrdered[index],
+                                      context);
+                                })),
+                        SizedBox(height: 20)
+                      ]))),
+        ));
   }
 }
