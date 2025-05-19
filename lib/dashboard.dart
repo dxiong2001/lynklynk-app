@@ -18,69 +18,72 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:pelaicons/pelaicons.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 
-class DBFile {
+class Constellation {
   final int id;
-  String filePath;
-  String fileName;
-  final String createDate;
+  String name;
+  String concept;
+  List<String> keyWords;
+  String directory;
+  int starred;
+  final String createdAt;
   String accessDate;
   String updateDate;
-  List tags;
-  int starred;
-  int existingFile; //boolean: 0 or 1
 
-  DBFile({
+  Constellation({
     required this.id,
-    required this.filePath,
-    required this.fileName,
-    required this.createDate,
+    required this.name,
+    required this.concept,
+    required this.keyWords,
+    required this.directory,
+    required this.starred,
+    required this.createdAt,
     required this.accessDate,
     required this.updateDate,
-    required this.tags,
-    required this.starred,
-    required this.existingFile,
   });
 
   Map<String, Object?> toMap() {
     return {
       'id': id,
-      'filePath': filePath,
-      'fileName': fileName,
-      'createDate': createDate,
+      'name': name,
+      'concept': concept,
+      'key_words': jsonEncode(keyWords),
+      'directory': directory,
+      'starred': starred,
+      'created_at': createdAt,
       'accessDate': accessDate,
       'updateDate': updateDate,
-      'tags': jsonEncode(tags),
-      'starred': starred,
-      'existingFile': existingFile
     };
   }
 
   @override
   String toString() {
-    return 'DBFile(id: $id, filePath: $filePath, fileName: $fileName, createDate: $createDate, accessDate: $accessDate, updateDate: $updateDate, tags: ${tags.toString()}, starred: $starred, existingFile: $existingFile)';
+    return 'Constellation(id: $id, name: $name, concept: $concept, key_words: ${keyWords.toString()}, directory: $directory, starred: $starred, created_at: $createdAt, accessDate: $accessDate, updateDate: $updateDate)';
   }
 }
 
 class Node {
-  String nodeTerm;
-  List<String> auxiliaries;
-  String color;
-  final String createDate;
-  String updateDate;
+  final int constellationID;
+  String text;
+  int type; //0: text, 1: image, 2: article (source -> url)
+  String source;
+  final String createdAt;
+  final String updatedAt;
 
   Node(
-      {required this.nodeTerm,
-      required this.auxiliaries,
-      required this.color,
-      required this.createDate,
-      required this.updateDate});
+      {required this.constellationID,
+      required this.text,
+      required this.type,
+      required this.source,
+      required this.createdAt,
+      required this.updatedAt});
   Map<String, Object?> toMap() {
     return {
-      'nodeTerm': nodeTerm,
-      'auxiliaries': jsonEncode(auxiliaries),
-      'color': color,
-      'createDate': createDate,
-      'updateDate': updateDate,
+      'constellation_id': constellationID,
+      'text': text,
+      'type': type,
+      'source': source,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
     };
   }
 }
@@ -106,10 +109,10 @@ class _Dashboard extends State<Dashboard> {
   TextEditingController newConstellationNameController =
       TextEditingController();
   String directoryName = "";
-  List<String> fileNameList = [];
+  List<String> nameList = [];
 
   //list of all files retrieved from db
-  List<DBFile> directoryFiles = [];
+  List<Constellation> directoryFiles = [];
 
   //list of all files retrieved from db sorted by attribute (default accessed date)
   List directoryFilesStarredOrdered = [];
@@ -147,8 +150,7 @@ class _Dashboard extends State<Dashboard> {
   Color secondaryColor = const Color.fromARGB(255, 82, 72, 159);
   List<bool> checkboxList = [];
   int checkBoxActiveCount = 0;
-  var fileDatabase;
-  var nodeDatabase;
+  var database;
   int databaseID = 0;
 
   @override
@@ -182,47 +184,92 @@ class _Dashboard extends State<Dashboard> {
     }
   }
 
+  Future<void> dropAllTables(Database db) async {
+    // Step 1: Get all user-defined table names
+    final tables = await db.rawQuery('''
+    SELECT name FROM sqlite_master 
+    WHERE type = 'table' AND name NOT LIKE 'sqlite_%';
+  ''');
+
+    // Step 2: Drop each table
+    for (final table in tables) {
+      final tableName = table['name'];
+      await db.execute('DROP TABLE IF EXISTS $tableName');
+    }
+  }
+
+  Future<void> deleteMyDatabase(String dbName) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, dbName);
+
+    // Delete the database file
+    await deleteDatabase(path);
+    print("Database deleted.");
+  }
+
   _asyncLoadDB() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    fileDatabase = openDatabase(
-      // Set the path to the database. Note: Using the `join` function from the
-      // `path` package is best practice to ensure the path is correctly
-      // constructed for each platform.
-      join(await getDatabasesPath(), 'lynklynk_file_database.db'),
-      // When the database is first created, create a table to store files.
-      onCreate: (db, version) {
-        // Run the CREATE TABLE statement on the database.
-        return db.execute(
-          'CREATE TABLE files(id INTEGER PRIMARY KEY, filePath TEXT, fileName TEXT, createDate TEXT, accessDate TEXT, updateDate TEXT, tags TEXT, starred INTEGER, existingFile INTEGER)',
+    database = openDatabase(
+      join(await getDatabasesPath(), 'lynklynk_database.db'),
+      onCreate: (db, version) async {
+        // Constellations table
+        await db.execute(
+          '''CREATE TABLE constellations(
+              id INTEGER PRIMARY KEY, 
+              name TEXT, 
+              concept TEXT, 
+              key_words TEXT, 
+              directory TEXT,
+              starred INTEGER,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+              accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
+            )''',
+        );
+
+        // Nodes table
+        await db.execute(
+          '''CREATE TABLE nodes(
+              id INTEGER PRIMARY KEY, 
+              constellation_id INTEGER NOT NULL,
+              text TEXT UNIQUE NOT NULL, 
+              type INTEGER NOT NULL, 
+              source TEXT, 
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
+            )''',
+        );
+
+        // Edges table
+        await db.execute(
+          '''CREATE TABLE edges(
+              id INTEGER PRIMARY KEY, 
+              constellation_id INTEGER NOT NULL,
+              from_node_id INTEGER NOT NULL,
+              to_node_id INTEGER NOT NULL,
+              relation TEXT, 
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
+              FOREIGN KEY (from_node_id) REFERENCES nodes(id),
+              FOREIGN KEY (to_node_id) REFERENCES nodes(id)
+            )''',
         );
       },
       onUpgrade: _onUpgrade,
-      // Set the version. This executes the onCreate function and provides a
-      // path to perform database upgrades and downgrades.
-      version: 4,
-    );
-
-    nodeDatabase = await openDatabase(
-      // Set the path to the database. Note: Using the `join` function from the
-      // `path` package is best practice to ensure the path is correctly
-      // constructed for each platform.
-      join(await getDatabasesPath(), 'lynklynk_node_database.db'),
-      // When the database is first created, create a table to store files.
-      onUpgrade: _onUpgradeNodeDB,
-      // Set the version. This executes the onCreate function and provides a
-      // path to perform database upgrades and downgrades.
-      version: 6,
+      version: 1,
     );
 
     try {
-      List<DBFile> queryResultsList = await getDBFileList();
+      List<Constellation> queryResultsList = await getConstellationList();
 
       setState(() {
         directoryFiles = queryResultsList;
         updateDirectoryFilesOrdering(directoryFiles);
         checkboxList = List<bool>.filled(queryResultsList.length, false);
-        fileNameList = queryResultsList.map((e) => e.fileName).toList();
+        nameList = queryResultsList.map((e) => e.name).toList();
       });
     } catch (e) {
       print(e);
@@ -234,11 +281,138 @@ class _Dashboard extends State<Dashboard> {
     });
   }
 
+  Future<int> createConstellation({
+    required Database db,
+    required String name,
+    required String concept,
+    required String directory,
+    required keyWords,
+    bool starred = false,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+
+    final data = {
+      'name': name,
+      'concept': concept,
+      'key_words': jsonEncode(keyWords),
+      'directory': directory,
+      'created_at': now,
+      'accessed_at': now,
+      'updated_at': now,
+      'starred': starred ? 1 : 0,
+    };
+
+    // Insert the constellation into the database and return its ID
+    return await db.insert('constellations', data,
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> updateConstellation({
+    required Database db,
+    required int constellationId,
+    String? name,
+    String? concept,
+    String? keyWords,
+    bool? starred,
+    List<Map<String, dynamic>>?
+        updatedNodes, // Includes node 'id' if updating, or omit 'id' to insert
+    List<Map<String, dynamic>>?
+        updatedEdges, // Includes edge 'id' if updating, or omit 'id' to insert
+  }) async {
+    await db.transaction((txn) async {
+      // Update constellation metadata
+      final updateFields = <String, Object?>{};
+      if (name != null) updateFields['name'] = name;
+      if (concept != null) updateFields['concept'] = concept;
+      if (keyWords != null) updateFields['key_words'] = keyWords;
+      if (starred != null) updateFields['starred'] = starred ? 1 : 0;
+      if (updateFields.isNotEmpty) {
+        updateFields['updated_at'] = DateTime.now().toIso8601String();
+        await txn.update(
+          'constellations',
+          updateFields,
+          where: 'id = ?',
+          whereArgs: [constellationId],
+        );
+      }
+
+      // Update or insert nodes
+      if (updatedNodes != null) {
+        for (var node in updatedNodes) {
+          if (node.containsKey('id')) {
+            // Update existing node
+            final id = node['id'];
+            await txn.update(
+              'nodes',
+              {
+                'text': node['text'],
+                'type': node['type'],
+                'source': node['source'],
+                'updated_at': DateTime.now().toIso8601String(),
+              },
+              where: 'id = ? AND constellation_id = ?',
+              whereArgs: [id, constellationId],
+            );
+          } else {
+            // Insert new node
+            await txn.insert('nodes', {
+              'text': node['text'],
+              'type': node['type'],
+              'source': node['source'],
+              'constellation_id': constellationId,
+            });
+          }
+        }
+      }
+
+      // Update or insert edges
+      if (updatedEdges != null) {
+        for (var edge in updatedEdges) {
+          if (edge.containsKey('id')) {
+            final id = edge['id'];
+            await txn.update(
+              'edges',
+              {
+                'text': edge['text'],
+                'relation': edge['relation'],
+                'from_node_id': edge['from_node_id'],
+                'to_node_id': edge['to_node_id'],
+                'updated_at': DateTime.now().toIso8601String(),
+              },
+              where: 'id = ? AND constellation_id = ?',
+              whereArgs: [id, constellationId],
+            );
+          } else {
+            await txn.insert('edges', {
+              'text': edge['text'],
+              'relation': edge['relation'],
+              'from_node_id': edge['from_node_id'],
+              'to_node_id': edge['to_node_id'],
+              'constellation_id': constellationId,
+            });
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> deleteConstellation({
+    required Database db,
+    required int constellationId,
+  }) async {
+    await db.delete(
+      'constellations',
+      where: 'id = ?',
+      whereArgs: [constellationId],
+    );
+    // Nodes and edges are automatically deleted due to ON DELETE CASCADE
+  }
+
   void updateDirectoryFilesOrdering(
-    List<DBFile> unordered,
+    List<Constellation> unordered,
   ) {
-    List<DBFile> starred = [];
-    List<DBFile> unstarred = [];
+    List<Constellation> starred = [];
+    List<Constellation> unstarred = [];
 
     for (int i = 0; i < unordered.length; i++) {
       if (unordered[i].starred == 0) {
@@ -255,16 +429,16 @@ class _Dashboard extends State<Dashboard> {
           DateTime.parse(b.accessDate).compareTo(DateTime.parse(a.accessDate)));
     } else if (sortAttribute == 1) {
       unstarred.sort((a, b) =>
-          DateTime.parse(b.createDate).compareTo(DateTime.parse(a.createDate)));
+          DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
       starred.sort((a, b) =>
-          DateTime.parse(b.createDate).compareTo(DateTime.parse(a.createDate)));
+          DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
     } else if (sortAttribute == 1) {
       unstarred.sort((a, b) =>
           DateTime.parse(b.updateDate).compareTo(DateTime.parse(a.updateDate)));
       starred.sort((a, b) =>
           DateTime.parse(b.updateDate).compareTo(DateTime.parse(a.updateDate)));
     } else {
-      unstarred.sort((a, b) => a.fileName.compareTo(b.fileName));
+      unstarred.sort((a, b) => a.name.compareTo(b.name));
     }
     setState(() {
       directoryFilesStarredOrdered = starred;
@@ -333,141 +507,48 @@ class _Dashboard extends State<Dashboard> {
     }
   }
 
-  Future<void> updateFiles() async {
-    try {
-      List<DBFile> queryResultsList = await getDBFileList();
-      print(queryResultsList);
-      setState(() {
-        directoryFiles = queryResultsList;
-        updateDirectoryFilesOrdering(directoryFiles);
-        fileNameList = queryResultsList.map((e) => e.fileName).toList();
-      });
-    } catch (e) {
-      print(e);
-    }
-  }
-
-  Future<void> insertDBFile(DBFile file) async {
-    final db = await fileDatabase;
-    await db.insert(
-      'files',
-      file.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-
-    var nodeDB = await nodeDatabase;
-    await nodeDB.execute(
-      'CREATE TABLE "${file.fileName}_${file.id.toString()}"(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, nodeTerm TEXT, auxiliaries TEXT, color TEXT, createDate TEXT, updateDate TEXT, image INTEGER NOT NULL DEFAULT (0), tag TEXT NOT NULL DEFAULT "")',
-    );
-    if (file.existingFile == 1) {
-      insertNodes(file);
-    }
-    updateFiles();
-  }
-
-  Future<void> insertNodes(DBFile file) async {
-    String filePath = file.filePath;
-    File readFile = File(filePath);
-    final contents = await readFile.readAsString();
-    List<String> fileArray = contents.split("\n");
-    fileArray.removeWhere((e) => e.trim().isEmpty);
-    var nodeDB = await nodeDatabase;
-    String currentDateTime = DateTime.now().toString();
-    for (int i = 0; i < fileArray.length; i++) {
-      await nodeDB.insert(
-        '"${file.fileName}_${file.id.toString()}"',
-        Node(
-                nodeTerm: fileArray[i],
-                auxiliaries: [],
-                color: Color.fromARGB(255, 224, 224, 224).toString(),
-                createDate: currentDateTime,
-                updateDate: currentDateTime)
-            .toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-  }
-
-  Future<List<DBFile>> getDBFileList() async {
+  Future<List<Constellation>> getConstellationList() async {
     // Get a reference to the database.
-    final db = await fileDatabase;
+    final db = await database;
 
     // Query the table for all the files.
-    final List<Map<String, Object?>> fileMaps = await db.query('files');
+    final List<Map<String, Object?>> constellationMaps =
+        await db.query('constellations');
 
     // Convert the list of each file's fields into a list of `file` objects.
     return [
       for (final {
             'id': id as int,
-            'filePath': filePath as String,
-            'fileName': fileName as String,
-            'createDate': createDate as String,
+            'name': name as String,
+            'concept': concept as String,
+            'key_words': keyWords as String,
+            'directory': directory as String,
+            'starred': starred as int,
+            'created_at': createdAt as String,
             'accessDate': accessDate as String,
             'updateDate': updateDate as String,
-            'tags': tags as String,
-            'starred': starred as int,
-            'existingFile': existingFile as int,
-          } in fileMaps)
-        DBFile(
-            id: id,
-            filePath: filePath,
-            fileName: fileName,
-            createDate: createDate,
-            accessDate: accessDate,
-            updateDate: updateDate,
-            tags: json.decode(tags),
-            starred: starred,
-            existingFile: existingFile),
+          } in constellationMaps)
+        Constellation(
+          id: id,
+          name: name,
+          concept: concept,
+          keyWords: json.decode(keyWords).cast<String>().toList(),
+          directory: directory,
+          starred: starred,
+          createdAt: createdAt,
+          accessDate: accessDate,
+          updateDate: updateDate,
+        ),
     ];
   }
 
-  Future<void> updateDBFile(DBFile file) async {
-    // Get a reference to the database.
-    final db = await fileDatabase;
-
-    // Update the given Dfile.
-    await db.update(
-      'files',
-      file.toMap(),
-      // Ensure that the file has a matching id.
-      where: 'id = ?',
-      // Pass the file's id as a whereArg to prevent SQL injection.
-      whereArgs: [file.id],
-    );
-
-    updateFiles();
+  String validateFileToTableName(String name) {
+    return name.replaceAll(" ", "_");
   }
 
-  Future<void> deleteDBFile(int id, String fileName) async {
-    // Get a reference to the database.
-    final db = await fileDatabase;
-    final nodeDB = await nodeDatabase;
-
-    // Remove the file from the database.
-    await db.delete(
-      'files',
-      // Use a `where` clause to delete a specific file.
-      where: 'id = ?',
-      // Pass the file's id as a whereArg to prevent SQL injection.
-      whereArgs: [id],
-    );
-
-    await nodeDB.execute('DROP TABLE IF EXISTS "${fileName}_$id"');
-    updateFiles();
-    currentlySelectedSet = -1;
-  }
-
-  void createFile(String fileName) {
-    new File('path/to/file').create(recursive: true);
-  }
-
-  String validateFileToTableName(String fileName) {
-    return fileName.replaceAll(" ", "_");
-  }
-
-  List<String> fileNameSearchSuggestionList(String searchParam,
+  List<String> nameSearchSuggestionList(String searchParam,
       {bool caseSensitive = true}) {
-    List<String> ret = fileNameList
+    List<String> ret = nameList
         .where((e) => caseSensitive
             ? e.startsWith(searchParam)
             : e.toLowerCase().startsWith(searchParam.toLowerCase()))
@@ -480,7 +561,8 @@ class _Dashboard extends State<Dashboard> {
     return ret;
   }
 
-  Widget dashboardConstellationCard(DBFile file, BuildContext context) {
+  Widget dashboardConstellationCard(
+      Constellation constellation, BuildContext context) {
     return Container(
 
         // decoration:
@@ -490,12 +572,13 @@ class _Dashboard extends State<Dashboard> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) =>
-                        Test(constellationName: file.fileName, id: file.id)
+                    builder: (context) => Test(
+                        constellationName: constellation.name,
+                        id: constellation.id)
                     // Editor(
                     //       path: pathName,
                     //       isPath: true,
-                    //       fileName: name.split(".")[0],
+                    //       name: name.split(".")[0],
                     //     )
                     ),
               );
@@ -528,15 +611,14 @@ class _Dashboard extends State<Dashboard> {
                             IconButton(
                               onPressed: () {
                                 setState(() {
-                                  if (file.starred == 0) {
-                                    file.starred = 1;
+                                  if (constellation.starred == 0) {
+                                    constellation.starred = 1;
                                   } else {
-                                    file.starred = 0;
+                                    constellation.starred = 0;
                                   }
-                                  updateDBFile(file);
                                 });
                               },
-                              icon: file.starred == 0
+                              icon: constellation.starred == 0
                                   ? const Icon(Icons.star_outline_rounded,
                                       size: 20,
                                       color: Color.fromARGB(255, 14, 14, 14))
@@ -555,7 +637,9 @@ class _Dashboard extends State<Dashboard> {
                                 itemBuilder: (BuildContext context) => [
                                       PopupMenuItem(
                                         onTap: () => {
-                                          deleteDBFile(file.id, file.fileName)
+                                          deleteConstellation(
+                                              db: database,
+                                              constellationId: constellation.id)
                                         },
                                         child: Text('Delete'),
                                       ),
@@ -568,7 +652,7 @@ class _Dashboard extends State<Dashboard> {
                           title: Text(
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 20),
-                              file.fileName),
+                              constellation.name),
                           subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -580,10 +664,13 @@ class _Dashboard extends State<Dashboard> {
                                           : const Text('Access Date:')
                                 ]),
                                 sortAttribute == 0
-                                    ? Text(processDate(file.accessDate))
+                                    ? Text(
+                                        processDate(constellation.accessDate))
                                     : sortAttribute == 1
-                                        ? Text(processDate(file.createDate))
-                                        : Text(processDate(file.updateDate))
+                                        ? Text(processDate(
+                                            constellation.createdAt))
+                                        : Text(processDate(
+                                            constellation.updateDate))
                               ]))
                     ])))));
   }
@@ -603,23 +690,21 @@ class _Dashboard extends State<Dashboard> {
     });
   }
 
-  bool _validateFileName(String name) {
-    var existingItem =
-        fileNameList.firstWhereOrNull((element) => element == name);
-    print(fileNameList);
+  bool _validatename(String name) {
+    var existingItem = nameList.firstWhereOrNull((element) => element == name);
+    print(nameList);
     return existingItem != null;
   }
 
-  String _validFileName(String name) {
+  String _validname(String name) {
     int index = 0;
-    String newFileName = name;
-    while (fileNameList.firstWhereOrNull((element) => element == newFileName) !=
-        null) {
+    String newname = name;
+    while (nameList.firstWhereOrNull((element) => element == newname) != null) {
       index += 1;
-      newFileName = "$name ($index)";
+      newname = "$name ($index)";
     }
 
-    return newFileName;
+    return newname;
   }
 
   Future<void> readJson() async {
@@ -663,6 +748,140 @@ class _Dashboard extends State<Dashboard> {
       }
     }
     f.writeAsString(content);
+  }
+
+  Widget addConstellationButton(BuildContext context) {
+    return Tooltip(
+        margin: const EdgeInsets.only(bottom: 40),
+        preferBelow: false,
+        message: 'Create a constellation',
+        child: Container(
+            height: 80,
+            width: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(width: 1, color: Colors.black),
+            ),
+            child: IconButton(
+                color: Colors.white,
+                icon: const Icon(Icons.add, color: Colors.black),
+                iconSize: 30,
+                style: IconButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(40)),
+                ),
+                onPressed: () {
+                  validNewConstellationName = true;
+                  newConstellationNameController.text = "";
+                  showDialog(
+                      context: context,
+                      barrierDismissible: true, //
+
+                      builder: (BuildContext context) {
+                        return StatefulBuilder(
+                          builder: (context, setState) {
+                            return Transform.translate(
+                                offset: Offset(0, -100),
+                                child: Dialog(
+                                  backgroundColor: Colors.transparent,
+                                  child: Form(
+                                    key: _formKey,
+                                    child: Stack(children: [
+                                      Container(
+                                        width: 480,
+                                        decoration: BoxDecoration(
+                                          borderRadius: const BorderRadius.all(
+                                            Radius.circular(10),
+                                          ),
+                                          color: dashboardColor,
+                                          border: Border.all(
+                                              width: 1, color: Colors.black),
+                                        ),
+                                        child: Container(
+                                          width: 460,
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 5),
+                                          child: TextFormField(
+                                            onChanged: (value) => {
+                                              setState(() {
+                                                validNewConstellationName =
+                                                    true;
+                                              })
+                                            },
+                                            autofocus: true,
+                                            controller:
+                                                newConstellationNameController,
+                                            decoration: const InputDecoration(
+                                                hintText: "New Constellation",
+                                                border: InputBorder.none,
+                                                icon: Icon(Icons.add)),
+                                            onFieldSubmitted: (value) async {
+                                              _formKey.currentState?.save();
+
+                                              if (value.isEmpty ||
+                                                  _validatename(value)) {
+                                                setState(() {
+                                                  validNewConstellationName =
+                                                      false;
+                                                });
+                                                return;
+                                              }
+
+                                              Directory appDocDir =
+                                                  await getApplicationDocumentsDirectory();
+                                              String appDocPath =
+                                                  appDocDir.path;
+                                              Directory directory = await Directory(
+                                                      '$appDocPath/LynkLynkApp/resources/$value')
+                                                  .create(recursive: true);
+
+                                              await createConstellation(
+                                                db: database,
+                                                name: value,
+                                                concept: value,
+                                                directory: directory.toString(),
+                                                keyWords: [],
+                                              );
+
+                                              if (context.mounted) {
+                                                Navigator.pop(context);
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          Test(
+                                                              id: 0,
+                                                              constellationName:
+                                                                  value)
+                                                      // Editor(path: "$directoryName/$constellationName.txt", isPath: true, name: constellationName)
+                                                      ),
+                                                );
+                                              }
+
+                                              setState(() {
+                                                newConstellationNameController =
+                                                    TextEditingController();
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                          margin:
+                                              EdgeInsets.only(top: 70, left: 5),
+                                          child: Text(
+                                              style: TextStyle(
+                                                  color: Colors.white),
+                                              validNewConstellationName
+                                                  ? ""
+                                                  : "Invalid constellation name"))
+                                    ]),
+                                  ),
+                                ));
+                          },
+                        );
+                      });
+                })));
   }
 
   @override
@@ -756,305 +975,203 @@ class _Dashboard extends State<Dashboard> {
                     ),
                   ))),
         ),
-        body: AnimatedOpacity(
-          opacity: visible ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 500),
-          child: Container(
-              decoration: const BoxDecoration(
-                color: Color.fromARGB(251, 255, 255, 255), // Background color
-              ),
-              padding: EdgeInsets.only(bottom: 10, right: 10, left: 10),
-              child: Padding(
-                  padding: const EdgeInsets.only(left: 25),
-                  child: ListView(
-                      // mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 20),
-                        Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
+        body: directoryFiles.isEmpty
+            ? Container(
+                alignment: Alignment.center,
+                child: Row(
+                  children: [
+                    Expanded(child: addConstellationButton(context)),
+                  ],
+                ))
+            : AnimatedOpacity(
+                opacity: visible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 500),
+                child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color.fromARGB(
+                          251, 255, 255, 255), // Background color
+                    ),
+                    padding: EdgeInsets.only(bottom: 10, right: 10, left: 10),
+                    child: Padding(
+                        padding: const EdgeInsets.only(left: 25),
+                        child: ListView(
+                            // mainAxisAlignment: MainAxisAlignment.start,
                             children: [
-                              Tooltip(
-                                  margin: const EdgeInsets.only(bottom: 20),
-                                  preferBelow: false,
-                                  message: 'Create a study file',
-                                  child: Container(
-                                      height: 80,
-                                      width: 80,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                            width: 1, color: Colors.black),
-                                      ),
-                                      child: IconButton(
-                                          color: Colors.white,
-                                          icon: const Icon(Icons.add,
-                                              color: Colors.black),
-                                          iconSize: 30,
-                                          style: IconButton.styleFrom(
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(40)),
-                                          ),
-                                          onPressed: () {
-                                            validNewConstellationName = true;
-                                            newConstellationNameController
-                                                .text = "";
-                                            showDialog(
-                                                context: context,
-                                                barrierDismissible: true, //
-
-                                                builder:
-                                                    (BuildContext context) {
-                                                  return StatefulBuilder(
-                                                    builder:
-                                                        (context, setState) {
-                                                      return Transform
-                                                          .translate(
-                                                              offset: Offset(
-                                                                  0, -100),
-                                                              child: Dialog(
-                                                                backgroundColor:
-                                                                    Colors
-                                                                        .transparent,
-                                                                child: Form(
-                                                                  key: _formKey,
-                                                                  child: Stack(
-                                                                      children: [
-                                                                        Container(
-                                                                          width:
-                                                                              480,
-                                                                          decoration:
-                                                                              BoxDecoration(
-                                                                            borderRadius:
-                                                                                const BorderRadius.all(
-                                                                              Radius.circular(10),
-                                                                            ),
-                                                                            color:
-                                                                                dashboardColor,
-                                                                            border:
-                                                                                Border.all(width: 1, color: Colors.black),
-                                                                          ),
-                                                                          child:
-                                                                              Container(
-                                                                            width:
-                                                                                460,
-                                                                            padding:
-                                                                                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                                                            child:
-                                                                                TextFormField(
-                                                                              onChanged: (value) => {
-                                                                                setState(() {
-                                                                                  validNewConstellationName = true;
-                                                                                })
-                                                                              },
-                                                                              autofocus: true,
-                                                                              controller: newConstellationNameController,
-                                                                              decoration: const InputDecoration(hintText: "New Constellation", border: InputBorder.none, icon: Icon(Icons.add)),
-                                                                              onFieldSubmitted: (value) async {
-                                                                                _formKey.currentState?.save();
-
-                                                                                if (value.isEmpty || _validateFileName(value)) {
-                                                                                  setState(() {
-                                                                                    validNewConstellationName = false;
-                                                                                  });
-                                                                                  return;
-                                                                                }
-                                                                                String constellationName = value;
-
-                                                                                setState(() {
-                                                                                  newConstellationNameController = TextEditingController();
-                                                                                });
-
-                                                                                String currentDateTime = DateTime.now().toString();
-                                                                                int id = directoryFiles.isEmpty ? 0 : directoryFiles.last.id + 1;
-                                                                                await insertDBFile(DBFile(id: id, filePath: "$directoryName/$constellationName.txt", fileName: constellationName, createDate: currentDateTime, accessDate: currentDateTime, updateDate: currentDateTime, tags: [], starred: 0, existingFile: 0));
-
-                                                                                if (context.mounted) {
-                                                                                  Navigator.pop(context);
-                                                                                  Navigator.push(
-                                                                                    context,
-                                                                                    MaterialPageRoute(builder: (context) => Test(id: id, constellationName: constellationName)
-                                                                                        // Editor(path: "$directoryName/$constellationName.txt", isPath: true, fileName: constellationName)
-                                                                                        ),
-                                                                                  );
-                                                                                }
-                                                                              },
-                                                                            ),
-                                                                          ),
-                                                                        ),
-                                                                        Container(
-                                                                            margin:
-                                                                                EdgeInsets.only(top: 70, left: 5),
-                                                                            child: Text(style: TextStyle(color: Colors.white), validNewConstellationName ? "" : "Invalid constellation name"))
-                                                                      ]),
-                                                                ),
-                                                              ));
-                                                    },
-                                                  );
-                                                });
-                                          }))),
-                              const SizedBox(
-                                width: 25,
-                              ),
-                              Tooltip(
-                                  margin: EdgeInsets.only(bottom: 20),
-                                  preferBelow: false,
-                                  message: 'Upload a study file',
-                                  child: Container(
-                                      height: 80,
-                                      width: 80,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                            width: 1, color: Colors.black),
-                                      ),
-                                      child: IconButton(
-                                          color: Colors.white,
-                                          icon: const Icon(
-                                              color: Colors.black,
-                                              Icons.arrow_upward_sharp),
-                                          iconSize: 30,
-                                          style: IconButton.styleFrom(
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(40)),
-                                          ),
-                                          onPressed: () async {
-                                            FilePickerResult? fileUploadResult =
-                                                await FilePicker.platform
-                                                    .pickFiles(
-                                              type: FileType.custom,
-                                              allowedExtensions: [
-                                                'txt',
-                                                'pdf',
-                                                'doc'
-                                              ],
-                                            );
-
-                                            if (fileUploadResult == null) {
-                                              return;
-                                            }
-                                            String defaultFileName =
-                                                './samples/test.txt';
-                                            String fileNameMaintain =
-                                                defaultFileName;
-                                            for (int i = 0;
-                                                i <
-                                                    fileUploadResult
-                                                        .paths.length;
-                                                i++) {
-                                              String filePath =
-                                                  fileUploadResult.paths[i] ??
-                                                      "./samples/test.txt";
-                                              String fileName =
-                                                  (fileUploadResult.names[i] ??
-                                                          "test.txt")
-                                                      .split(".")[0];
-
-                                              String validFileName =
-                                                  _validFileName(fileName);
-                                              setState(() {
-                                                fileNameList.add(validFileName);
-                                                newConstellationNameController =
-                                                    TextEditingController(
-                                                        text: _validFileName(
-                                                            "Constellation"));
-                                              });
-                                              if (i == 0) {
-                                                fileNameMaintain =
-                                                    validFileName;
-                                              }
-
-                                              String currentDateTime =
-                                                  DateTime.now().toString();
-                                              await insertDBFile(DBFile(
-                                                  id: directoryFiles.isEmpty
-                                                      ? 0
-                                                      : directoryFiles.last.id +
-                                                          1,
-                                                  filePath: filePath,
-                                                  fileName: validFileName,
-                                                  createDate: currentDateTime,
-                                                  accessDate: currentDateTime,
-                                                  updateDate: currentDateTime,
-                                                  tags: [],
-                                                  starred: 0,
-                                                  existingFile: 1));
-                                            }
-
-                                            print(
-                                                "file upload result: $fileUploadResult");
-                                          }))),
-                            ]),
-                        Container(
-                            margin: EdgeInsets.only(top: 20),
-                            child: Row(children: [
-                              Text("Constellations",
-                                  style: TextStyle(
-                                      color: Colors.black, fontSize: 25)),
-                            ])),
-                        directoryFilesStarredOrdered.isNotEmpty
-                            ? Container(
-                                margin: EdgeInsets.only(
-                                    right: 30, bottom: 15, top: 10),
-                                child: GridView.builder(
-                                    gridDelegate:
-                                        SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: MediaQuery.sizeOf(context)
-                                                  .width >
-                                              1200
-                                          ? 4
-                                          : MediaQuery.sizeOf(context).width >
-                                                  800
-                                              ? 3
-                                              : 2,
-                                      childAspectRatio: 1.0,
-                                      crossAxisSpacing: 15,
-                                      mainAxisSpacing: 15,
-                                      mainAxisExtent: 300,
+                              const SizedBox(height: 20),
+                              Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  children: [
+                                    addConstellationButton(context),
+                                    const SizedBox(
+                                      width: 25,
                                     ),
-                                    shrinkWrap: true,
-                                    itemCount:
-                                        directoryFilesStarredOrdered.length,
-                                    itemBuilder:
-                                        (BuildContext context, int index) {
-                                      return dashboardConstellationCard(
-                                          directoryFilesStarredOrdered[index],
-                                          context);
-                                    }))
-                            : const SizedBox(),
-                        directoryFilesStarredOrdered.isNotEmpty
-                            ? Divider()
-                            : SizedBox(),
-                        Container(
-                            margin: EdgeInsets.only(right: 30, top: 15),
-                            child: GridView.builder(
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: MediaQuery.sizeOf(context)
-                                              .width >
-                                          1200
-                                      ? 4
-                                      : MediaQuery.sizeOf(context).width > 900
-                                          ? 3
-                                          : 2,
-                                  childAspectRatio: 1.0,
-                                  crossAxisSpacing: 15,
-                                  mainAxisSpacing: 15,
-                                  mainAxisExtent: 300,
-                                ),
-                                scrollDirection: Axis.vertical,
-                                shrinkWrap: true,
-                                controller: scroller,
-                                itemCount:
-                                    directoryFilesUnstarredOrdered.length,
-                                itemBuilder: (BuildContext context, int index) {
-                                  return dashboardConstellationCard(
-                                      directoryFilesUnstarredOrdered[index],
-                                      context);
-                                })),
-                        SizedBox(height: 20)
-                      ]))),
-        ));
+                                    Tooltip(
+                                        margin: EdgeInsets.only(bottom: 20),
+                                        preferBelow: false,
+                                        message: 'Upload a study file',
+                                        child: Container(
+                                            height: 80,
+                                            width: 80,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                  width: 1,
+                                                  color: Colors.black),
+                                            ),
+                                            child: IconButton(
+                                                color: Colors.white,
+                                                icon: const Icon(
+                                                    color: Colors.black,
+                                                    Icons.arrow_upward_sharp),
+                                                iconSize: 30,
+                                                style: IconButton.styleFrom(
+                                                  shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              40)),
+                                                ),
+                                                onPressed: () async {
+                                                  FilePickerResult?
+                                                      fileUploadResult =
+                                                      await FilePicker.platform
+                                                          .pickFiles(
+                                                    type: FileType.custom,
+                                                    allowedExtensions: [
+                                                      'txt',
+                                                      'pdf',
+                                                      'doc'
+                                                    ],
+                                                  );
+
+                                                  if (fileUploadResult ==
+                                                      null) {
+                                                    return;
+                                                  }
+                                                  String defaultname =
+                                                      './samples/test.txt';
+                                                  String nameMaintain =
+                                                      defaultname;
+                                                  for (int i = 0;
+                                                      i <
+                                                          fileUploadResult
+                                                              .paths.length;
+                                                      i++) {
+                                                    String filePath =
+                                                        fileUploadResult
+                                                                .paths[i] ??
+                                                            "./samples/test.txt";
+                                                    String name =
+                                                        (fileUploadResult
+                                                                    .names[i] ??
+                                                                "test.txt")
+                                                            .split(".")[0];
+
+                                                    String validname =
+                                                        _validname(name);
+                                                    setState(() {
+                                                      nameList.add(validname);
+                                                      newConstellationNameController =
+                                                          TextEditingController(
+                                                              text: _validname(
+                                                                  "Constellation"));
+                                                    });
+                                                    if (i == 0) {
+                                                      nameMaintain = validname;
+                                                    }
+
+                                                    String currentDateTime =
+                                                        DateTime.now()
+                                                            .toString();
+                                                    await createConstellation(
+                                                      db: database,
+                                                      name: "",
+                                                      concept: "",
+                                                      directory: "",
+                                                      keyWords: [],
+                                                    );
+                                                  }
+
+                                                  print(
+                                                      "file upload result: $fileUploadResult");
+                                                }))),
+                                  ]),
+                              Container(
+                                  margin: EdgeInsets.only(top: 20),
+                                  child: Row(children: [
+                                    Text("Constellations",
+                                        style: TextStyle(
+                                            color: Colors.black, fontSize: 25)),
+                                  ])),
+                              directoryFilesStarredOrdered.isNotEmpty
+                                  ? Container(
+                                      margin: EdgeInsets.only(
+                                          right: 30, bottom: 15, top: 10),
+                                      child: GridView.builder(
+                                          gridDelegate:
+                                              SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount:
+                                                MediaQuery.sizeOf(context)
+                                                            .width >
+                                                        1200
+                                                    ? 4
+                                                    : MediaQuery.sizeOf(context)
+                                                                .width >
+                                                            800
+                                                        ? 3
+                                                        : 2,
+                                            childAspectRatio: 1.0,
+                                            crossAxisSpacing: 15,
+                                            mainAxisSpacing: 15,
+                                            mainAxisExtent: 300,
+                                          ),
+                                          shrinkWrap: true,
+                                          itemCount:
+                                              directoryFilesStarredOrdered
+                                                  .length,
+                                          itemBuilder: (BuildContext context,
+                                              int index) {
+                                            return dashboardConstellationCard(
+                                                directoryFilesStarredOrdered[
+                                                    index],
+                                                context);
+                                          }))
+                                  : const SizedBox(),
+                              directoryFilesStarredOrdered.isNotEmpty
+                                  ? Divider()
+                                  : SizedBox(),
+                              Container(
+                                  margin: EdgeInsets.only(right: 30, top: 15),
+                                  child: GridView.builder(
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount:
+                                            MediaQuery.sizeOf(context).width >
+                                                    1200
+                                                ? 4
+                                                : MediaQuery.sizeOf(context)
+                                                            .width >
+                                                        900
+                                                    ? 3
+                                                    : 2,
+                                        childAspectRatio: 1.0,
+                                        crossAxisSpacing: 15,
+                                        mainAxisSpacing: 15,
+                                        mainAxisExtent: 300,
+                                      ),
+                                      scrollDirection: Axis.vertical,
+                                      shrinkWrap: true,
+                                      controller: scroller,
+                                      itemCount:
+                                          directoryFilesUnstarredOrdered.length,
+                                      itemBuilder:
+                                          (BuildContext context, int index) {
+                                        return dashboardConstellationCard(
+                                            directoryFilesUnstarredOrdered[
+                                                index],
+                                            context);
+                                      })),
+                              SizedBox(height: 20)
+                            ]))),
+              ));
   }
 }

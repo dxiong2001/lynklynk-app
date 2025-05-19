@@ -1027,7 +1027,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
 // - used for the ReorderableListView that displays the auxiliary nodes
 // -------------------------------------------------------------------------------------------------------------------------------------
 
-  Widget auxiliaryDisplayProxyDecorator(
+  Widget auxiliaryDisplayProxyDecoratorTier1(
       Widget child, int index, Animation<double> animation) {
     return AnimatedBuilder(
       animation: animation,
@@ -1039,7 +1039,26 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           scale: scale,
           // Create a Card based on the color and the content of the dragged one
           // and set its elevation to the animated value.
-          child: auxiliaryDisplay(mainNode.auxiliaries[index], 2),
+          child: auxiliaryDisplay(mainNode.auxiliaries[index], 1),
+        );
+      },
+      child: child,
+    );
+  }
+
+  Widget auxiliaryDisplayProxyDecoratorTier2(
+      Widget child, int index, Animation<double> animation) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (BuildContext context, Widget? child) {
+        final double animValue = Curves.easeInOut.transform(animation.value);
+        final double elevation = lerpDouble(1, 6, animValue)!;
+        final double scale = lerpDouble(1, 1.02, animValue)!;
+        return Transform.scale(
+          scale: scale,
+          // Create a Card based on the color and the content of the dragged one
+          // and set its elevation to the animated value.
+          child: auxiliaryDisplay(secondaryNode!.auxiliaries[index], 2),
         );
       },
       child: child,
@@ -1071,8 +1090,37 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                 child: GestureDetector(
                     onTap: () async {
                       if (index == 1) {
-                        if (!showSecond) {
-                          // Showing center
+                        if (secondaryNode == null ||
+                            auxNode.nodeTerm == secondaryNode!.nodeTerm) {
+                          if (!showSecond) {
+                            // Showing center
+                            setState(() {
+                              secondaryNode = auxNode;
+                              showSecond = true;
+                            });
+
+                            // First animate left container
+                            await Future.delayed(Duration(milliseconds: 400));
+
+                            // Then animate center
+                            _controller1.forward();
+                          } else {
+                            // Hiding center
+                            _controller1.reverse();
+
+                            await Future.delayed(Duration(milliseconds: 350));
+
+                            setState(() {
+                              secondaryNode = null;
+                              showSecond = false;
+                            });
+                          }
+                        } else {
+                          //when another secondary node is selected
+
+                          _controller1.reverse();
+                          await Future.delayed(Duration(milliseconds: 400));
+
                           setState(() {
                             secondaryNode = auxNode;
                             showSecond = true;
@@ -1083,21 +1131,29 @@ class _Test extends State<Test> with TickerProviderStateMixin {
 
                           // Then animate center
                           _controller1.forward();
-                        } else {
-                          // Hiding center
-                          _controller1.reverse();
-
-                          await Future.delayed(Duration(milliseconds: 350));
-
-                          setState(() {
-                            showSecond = false;
-                          });
                         }
                       }
                     },
-                    onDoubleTap: () {
+                    onDoubleTap: () async {
+                      print("aux pressed");
+                      // Hiding center
+                      setState(() {
+                        switchMain = true;
+                      });
+                      _controller1.reverse();
+                      _controller.reverse();
+                      setState(() {
+                        secondaryNode = null;
+                        showSecond = false;
+                      });
+                      await Future.delayed(Duration(milliseconds: 400));
                       setState(() {
                         mainNode = nodeMap[term]!;
+                      });
+                      await Future.delayed(Duration(milliseconds: 400));
+                      _controller.forward();
+                      setState(() {
+                        switchMain = false;
                       });
                     },
                     child: Card(
@@ -1543,6 +1599,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   bool showSecond = false;
   bool showCenter = false;
   bool showRight = false;
+  bool midTransition = false;
   double angle = 0.0;
   final double radius = 180.0;
   final List<String> items = [
@@ -1581,6 +1638,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   }
 
   Node? secondaryNode;
+  bool switchMain = false;
 
   @override
   Widget build(BuildContext context) {
@@ -2035,7 +2093,11 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                         width: 1200,
                                                                         child: Row(children: [
                                                                           AnimatedSlide(
-                                                                              offset: showSecond ? Offset(0, 0) : Offset(0.25, 0),
+                                                                              offset: showSecond
+                                                                                  ? Offset(0, 0)
+                                                                                  : showCenter
+                                                                                      ? Offset(0.25, 0)
+                                                                                      : Offset(0.5, 0),
                                                                               duration: Duration(milliseconds: 600),
                                                                               curve: Curves.easeInOut,
                                                                               child: AnimatedAlign(
@@ -2044,143 +2106,128 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                                 alignment: Alignment.center,
                                                                                 child: SizedBox(
                                                                                     width: totalWidth,
-                                                                                    child: Row(
-                                                                                      mainAxisAlignment: MainAxisAlignment.center,
-                                                                                      children: [
-                                                                                        AnimatedSlide(
-                                                                                            offset: showCenter ? Offset(0, 0) : Offset(showSecond ? 1 : 0.5, 0),
-                                                                                            duration: Duration(milliseconds: 600),
-                                                                                            curve: Curves.easeInOut,
-                                                                                            child: GestureDetector(
-                                                                                                onTap: () async {
-                                                                                                  if (!showCenter) {
-                                                                                                    // Showing center
-                                                                                                    setState(() {
-                                                                                                      showCenter = true;
-                                                                                                    });
-
-                                                                                                    // First animate left container
-                                                                                                    await Future.delayed(Duration(milliseconds: 400));
-
-                                                                                                    // Then animate center
-                                                                                                    _controller.forward();
-
-                                                                                                    if (showSecond) {
-                                                                                                      _controller1.forward();
-                                                                                                    }
-                                                                                                  } else {
-                                                                                                    // Hiding center
-
-                                                                                                    if (showSecond) {
-                                                                                                      _controller1.reverse();
-                                                                                                    }
-
-                                                                                                    _controller.reverse();
-
-                                                                                                    await Future.delayed(Duration(milliseconds: 350));
-
-                                                                                                    setState(() {
-                                                                                                      showCenter = false;
-                                                                                                    });
-                                                                                                  }
-                                                                                                },
-                                                                                                child: Stack(children: [
-                                                                                                  Column(children: [
-                                                                                                    Container(
-                                                                                                        constraints: BoxConstraints(
-                                                                                                          maxWidth: 400,
-                                                                                                        ),
-                                                                                                        padding: EdgeInsets.only(
-                                                                                                          right: 20,
-                                                                                                        ),
-                                                                                                        child: Stack(children: [
-                                                                                                          (
-                                                                                                              // Main node card
-                                                                                                              Container(
-                                                                                                                  decoration: BoxDecoration(
-                                                                                                                    borderRadius: BorderRadius.circular(20),
-                                                                                                                    border: Border.all(width: 1, color: Colors.black),
-                                                                                                                    color: Colors.white,
-                                                                                                                  ),
-                                                                                                                  alignment: Alignment.center,
-                                                                                                                  child: Container(padding: EdgeInsets.all(15), child: mainNode.image == 1 ? Image.file(File(mainNode.nodeTerm)) : Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25))))),
-                                                                                                          Container(
-                                                                                                              color: Color.fromARGB(0, 0, 0, 0),
-                                                                                                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                                                                                                              child: Row(
-                                                                                                                mainAxisAlignment: MainAxisAlignment.end,
-                                                                                                                children: [
-                                                                                                                  Spacer(),
-                                                                                                                  mainNodeHover
-                                                                                                                      ? Row(children: [
-                                                                                                                          IconButton(
-                                                                                                                              onPressed: () {
-                                                                                                                                removeNode();
-                                                                                                                              },
-                                                                                                                              icon: Icon(Icons.delete)),
-                                                                                                                          SizedBox(width: 10),
-                                                                                                                          IconButton(
-                                                                                                                            icon: Icon(Icons.edit),
-                                                                                                                            onPressed: () {
-                                                                                                                              setState(() {
-                                                                                                                                editingMode = true;
-                                                                                                                                editingModeCurrentNode = true;
-                                                                                                                                editingNode = mainNode;
-                                                                                                                                auxiliaryNodePriorEditList = mainNode.auxiliaries;
-                                                                                                                                mainNodeTextController = TextEditingController(text: mainNode.nodeTerm);
-                                                                                                                                editingModeTextUpload = mainNode.image == 0;
-                                                                                                                                editingModePhotoUploaded = mainNode.image == 1;
-                                                                                                                                auxiliaryEntryList = mainNode.auxiliaries.map((e) => AuxiliaryEntry(controller: TextEditingController(text: e), imageMode: nodeMap[e]?.image == 1 ? 1 : -1, selected: false)).toList();
-                                                                                                                              });
-                                                                                                                            },
-                                                                                                                          )
-                                                                                                                        ])
-                                                                                                                      : SizedBox(height: 40)
-                                                                                                                ],
-                                                                                                              )),
-                                                                                                        ])),
-                                                                                                  ]),
-                                                                                                  // Top Gradient
-                                                                                                ]))),
-                                                                                        Expanded(
-                                                                                            child: ClipRect(
-                                                                                          child: SizedBox(
-                                                                                            width: 400, // Always reserve space
-                                                                                            child: AnimatedBuilder(
-                                                                                              animation: _controller,
-                                                                                              builder: (context, child) {
-                                                                                                return Opacity(
-                                                                                                  opacity: _fadeAnimation.value,
-                                                                                                  child: FractionalTranslation(
-                                                                                                    translation: Offset(0, _slideAnimation.value),
-                                                                                                    child: child,
-                                                                                                  ),
-                                                                                                );
-                                                                                              },
+                                                                                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                                                                      AnimatedOpacity(
+                                                                                          opacity: switchMain ? _fadeAnimation1.value : 1,
+                                                                                          curve: Curves.easeInOut,
+                                                                                          duration: Duration(milliseconds: 200),
+                                                                                          child: AnimatedSlide(
+                                                                                              offset: Offset(0, 0),
+                                                                                              duration: Duration(milliseconds: 600),
+                                                                                              curve: Curves.easeInOut,
                                                                                               child: Container(
-                                                                                                constraints: BoxConstraints(maxWidth: 400),
-                                                                                                child: ReorderableListView(
-                                                                                                  shrinkWrap: true,
-                                                                                                  physics: ClampingScrollPhysics(),
-                                                                                                  padding: const EdgeInsets.only(right: 10),
-                                                                                                  proxyDecorator: auxiliaryDisplayProxyDecorator,
-                                                                                                  onReorder: (int oldIndex, int newIndex) {
-                                                                                                    setState(() {
-                                                                                                      if (oldIndex < newIndex) newIndex -= 1;
-                                                                                                      if (oldIndex != newIndex) {
-                                                                                                        final term = mainNode.auxiliaries.removeAt(oldIndex);
-                                                                                                        mainNode.auxiliaries.insert(newIndex, term);
+                                                                                                  constraints: BoxConstraints(
+                                                                                                    minHeight: 60,
+                                                                                                    maxWidth: 400,
+                                                                                                  ),
+                                                                                                  padding: EdgeInsets.only(
+                                                                                                    right: 20,
+                                                                                                  ),
+                                                                                                  child: GestureDetector(
+                                                                                                    onTap: () async {
+                                                                                                      print("testtttt");
+                                                                                                      if (midTransition) {
+                                                                                                        return;
                                                                                                       }
-                                                                                                    });
-                                                                                                  },
-                                                                                                  children: mainNode.auxiliaries.map((e) => auxiliaryDisplay(e, 1)).toList(),
+
+                                                                                                      setState(() {
+                                                                                                        midTransition = true;
+                                                                                                      });
+
+                                                                                                      if (!showCenter) {
+                                                                                                        // Showing center
+
+                                                                                                        setState(() {
+                                                                                                          showCenter = true;
+                                                                                                          showCenter = true;
+                                                                                                        });
+
+                                                                                                        // First animate left container
+                                                                                                        await Future.delayed(Duration(milliseconds: 400));
+
+                                                                                                        // Then animate center
+                                                                                                        _controller.forward();
+
+                                                                                                        if (showSecond) {
+                                                                                                          _controller1.forward();
+                                                                                                        }
+                                                                                                      } else {
+                                                                                                        // Hiding center
+
+                                                                                                        if (showSecond) {
+                                                                                                          _controller1.reverse();
+                                                                                                        }
+
+                                                                                                        _controller.reverse();
+
+                                                                                                        await Future.delayed(Duration(milliseconds: 350));
+
+                                                                                                        setState(() {
+                                                                                                          showCenter = false;
+                                                                                                          showSecond = false;
+                                                                                                        });
+                                                                                                      }
+                                                                                                      setState(() {
+                                                                                                        midTransition = false;
+                                                                                                      });
+                                                                                                    },
+                                                                                                    child:
+
+                                                                                                        // Main node card
+
+                                                                                                        Container(
+                                                                                                            width: 400,
+                                                                                                            decoration: BoxDecoration(
+                                                                                                              borderRadius: BorderRadius.circular(20),
+                                                                                                              border: Border.all(width: 1, color: Colors.black),
+                                                                                                              color: Colors.white,
+                                                                                                            ),
+                                                                                                            alignment: Alignment.center,
+                                                                                                            child: Container(padding: EdgeInsets.all(15), child: mainNode.image == 1 ? Image.file(File(mainNode.nodeTerm)) : Text(mainNode.nodeTerm, style: TextStyle(fontSize: mainNode.nodeTerm.length > 100 ? 15 : 25)))),
+                                                                                                  ))
+                                                                                              // Top Gradient
+                                                                                              )),
+                                                                                      Expanded(
+                                                                                          child: IgnorePointer(
+                                                                                              ignoring: !showCenter,
+                                                                                              child: ClipRect(
+                                                                                                child: Container(
+                                                                                                  // decoration: BoxDecoration(border: Border.all(color: Colors.black, width: 1)),
+                                                                                                  width: 400, // Always reserve space
+                                                                                                  child: AnimatedBuilder(
+                                                                                                    animation: _controller,
+                                                                                                    builder: (context, child) {
+                                                                                                      return Opacity(
+                                                                                                        opacity: _fadeAnimation.value,
+                                                                                                        child: FractionalTranslation(
+                                                                                                          translation: Offset(0, _slideAnimation.value),
+                                                                                                          child: child,
+                                                                                                        ),
+                                                                                                      );
+                                                                                                    },
+                                                                                                    child: Container(
+                                                                                                      constraints: BoxConstraints(maxWidth: 400),
+                                                                                                      child: ReorderableListView(
+                                                                                                        shrinkWrap: true,
+                                                                                                        physics: ClampingScrollPhysics(),
+                                                                                                        padding: const EdgeInsets.only(right: 10),
+                                                                                                        proxyDecorator: auxiliaryDisplayProxyDecoratorTier1,
+                                                                                                        onReorder: (int oldIndex, int newIndex) {
+                                                                                                          setState(() {
+                                                                                                            if (oldIndex < newIndex) newIndex -= 1;
+                                                                                                            if (oldIndex != newIndex) {
+                                                                                                              final term = mainNode.auxiliaries.removeAt(oldIndex);
+                                                                                                              mainNode.auxiliaries.insert(newIndex, term);
+                                                                                                            }
+                                                                                                          });
+                                                                                                        },
+                                                                                                        children: showCenter ? mainNode.auxiliaries.map((e) => auxiliaryDisplay(e, 1)).toList() : [],
+                                                                                                      ),
+                                                                                                    ),
+                                                                                                  ),
                                                                                                 ),
-                                                                                              ),
-                                                                                            ),
-                                                                                          ),
-                                                                                        ))
-                                                                                      ],
-                                                                                    )),
+                                                                                              )))
+                                                                                    ])),
                                                                               )),
                                                                           ClipRect(
                                                                             child:
@@ -2203,7 +2250,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                                     shrinkWrap: true,
                                                                                     physics: ClampingScrollPhysics(),
                                                                                     padding: const EdgeInsets.only(right: 10),
-                                                                                    proxyDecorator: auxiliaryDisplayProxyDecorator,
+                                                                                    proxyDecorator: auxiliaryDisplayProxyDecoratorTier2,
                                                                                     onReorder: (int oldIndex, int newIndex) {
                                                                                       setState(() {
                                                                                         if (secondaryNode == null) return;
