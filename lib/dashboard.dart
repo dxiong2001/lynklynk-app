@@ -19,15 +19,15 @@ import 'package:pelaicons/pelaicons.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 
 class Constellation {
-  final int id;
+  int id;
   String name;
   String concept;
   List<String> keyWords;
   String directory;
   int starred;
   final String createdAt;
-  String accessDate;
-  String updateDate;
+  String accessedAt;
+  String updatedAt;
 
   Constellation({
     required this.id,
@@ -37,8 +37,8 @@ class Constellation {
     required this.directory,
     required this.starred,
     required this.createdAt,
-    required this.accessDate,
-    required this.updateDate,
+    required this.accessedAt,
+    required this.updatedAt,
   });
 
   Map<String, Object?> toMap() {
@@ -50,18 +50,19 @@ class Constellation {
       'directory': directory,
       'starred': starred,
       'created_at': createdAt,
-      'accessDate': accessDate,
-      'updateDate': updateDate,
+      'accessed_at': accessedAt,
+      'updated_at': updatedAt,
     };
   }
 
   @override
   String toString() {
-    return 'Constellation(id: $id, name: $name, concept: $concept, key_words: ${keyWords.toString()}, directory: $directory, starred: $starred, created_at: $createdAt, accessDate: $accessDate, updateDate: $updateDate)';
+    return 'Constellation(id: $id, name: $name, concept: $concept, key_words: ${keyWords.toString()}, directory: $directory, starred: $starred, created_at: $createdAt, accessed_at: $accessedAt, updated_at: $updatedAt)';
   }
 }
 
 class Node {
+  final int id;
   final int constellationID;
   String text;
   int type; //0: text, 1: image, 2: article (source -> url)
@@ -70,7 +71,8 @@ class Node {
   final String updatedAt;
 
   Node(
-      {required this.constellationID,
+      {required this.id,
+      required this.constellationID,
       required this.text,
       required this.type,
       required this.source,
@@ -78,6 +80,7 @@ class Node {
       required this.updatedAt});
   Map<String, Object?> toMap() {
     return {
+      'id': id,
       'constellation_id': constellationID,
       'text': text,
       'type': type,
@@ -112,16 +115,16 @@ class _Dashboard extends State<Dashboard> {
   List<String> nameList = [];
 
   //list of all files retrieved from db
-  List<Constellation> directoryFiles = [];
+  List<Constellation> constellations = [];
 
   //list of all files retrieved from db sorted by attribute (default accessed date)
-  List directoryFilesStarredOrdered = [];
-  List directoryFilesUnstarredOrdered = [];
+  List constellationsStarredOrdered = [];
+  List constellationsUnstarredOrdered = [];
 
-  //string attribute by which directoryFilesOrdered is sorted by (most recent at top)
+  //string attribute by which constellationsOrdered is sorted by (most recent at top)
   int sortAttribute = 0;
 
-  //list of attributes by which directoryFilesOrdered can be sorted by
+  //list of attributes by which constellationsOrdered can be sorted by
   List<String> sortAttributeList = [
     "Access",
     "Create",
@@ -150,7 +153,7 @@ class _Dashboard extends State<Dashboard> {
   Color secondaryColor = const Color.fromARGB(255, 82, 72, 159);
   List<bool> checkboxList = [];
   int checkBoxActiveCount = 0;
-  var database;
+  late Database database;
   int databaseID = 0;
 
   @override
@@ -210,7 +213,7 @@ class _Dashboard extends State<Dashboard> {
   _asyncLoadDB() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    database = openDatabase(
+    database = await openDatabase(
       join(await getDatabasesPath(), 'lynklynk_database.db'),
       onCreate: (db, version) async {
         // Constellations table
@@ -264,10 +267,10 @@ class _Dashboard extends State<Dashboard> {
 
     try {
       List<Constellation> queryResultsList = await getConstellationList();
-
+      print(queryResultsList.map((e) => e.name));
       setState(() {
-        directoryFiles = queryResultsList;
-        updateDirectoryFilesOrdering(directoryFiles);
+        constellations = queryResultsList;
+        updateConstellationsOrdering(constellations);
         checkboxList = List<bool>.filled(queryResultsList.length, false);
         nameList = queryResultsList.map((e) => e.name).toList();
       });
@@ -286,25 +289,46 @@ class _Dashboard extends State<Dashboard> {
     required String name,
     required String concept,
     required String directory,
-    required keyWords,
+    required List<String> keyWords,
     bool starred = false,
   }) async {
     final now = DateTime.now().toIso8601String();
 
-    final data = {
-      'name': name,
-      'concept': concept,
-      'key_words': jsonEncode(keyWords),
-      'directory': directory,
-      'created_at': now,
-      'accessed_at': now,
-      'updated_at': now,
-      'starred': starred ? 1 : 0,
-    };
+    Constellation newConstellation = Constellation(
+      id: 0,
+      name: name,
+      concept: concept,
+      keyWords: keyWords,
+      directory: directory,
+      starred: starred ? 1 : 0,
+      createdAt: now,
+      accessedAt: now,
+      updatedAt: now,
+    );
 
+    //Add constellation locally
+    setState(() {
+      constellations.add(newConstellation);
+      updateConstellationsOrdering(constellations);
+    });
     // Insert the constellation into the database and return its ID
-    return await db.insert('constellations', data,
+    int newConstellationId = await db.insert(
+        'constellations',
+        {
+          'name': name,
+          'concept': concept,
+          'key_words': jsonEncode(keyWords),
+          'directory': directory,
+          'starred': starred ? 1 : 0,
+          'created_at': now,
+          'accessed_at': now,
+          'updated_at': now,
+        },
         conflictAlgorithm: ConflictAlgorithm.replace);
+    //Update constellation ID with returned ID value
+    constellations[constellations.length - 1].id = newConstellationId;
+
+    return newConstellationId;
   }
 
   Future<void> updateConstellation({
@@ -312,8 +336,8 @@ class _Dashboard extends State<Dashboard> {
     required int constellationId,
     String? name,
     String? concept,
-    String? keyWords,
-    bool? starred,
+    List<String>? keyWords,
+    int? starred,
     List<Map<String, dynamic>>?
         updatedNodes, // Includes node 'id' if updating, or omit 'id' to insert
     List<Map<String, dynamic>>?
@@ -321,11 +345,54 @@ class _Dashboard extends State<Dashboard> {
   }) async {
     await db.transaction((txn) async {
       // Update constellation metadata
+
+      bool updated = false;
       final updateFields = <String, Object?>{};
-      if (name != null) updateFields['name'] = name;
-      if (concept != null) updateFields['concept'] = concept;
-      if (keyWords != null) updateFields['key_words'] = keyWords;
-      if (starred != null) updateFields['starred'] = starred ? 1 : 0;
+      if (name != null) {
+        updated = true;
+        updateFields['name'] = name;
+        setState(() {
+          constellations[
+                  constellations.indexWhere((e) => e.id == constellationId)]
+              .name = name;
+        });
+      }
+      if (concept != null) {
+        updated = true;
+
+        updateFields['concept'] = concept;
+        setState(() {
+          constellations[
+                  constellations.indexWhere((e) => e.id == constellationId)]
+              .concept = concept;
+        });
+      }
+      if (keyWords != null) {
+        updated = true;
+
+        updateFields['key_words'] = keyWords.toString();
+        setState(() {
+          constellations[
+                  constellations.indexWhere((e) => e.id == constellationId)]
+              .keyWords = keyWords;
+        });
+      }
+      if (starred != null) {
+        updated = true;
+
+        updateFields['starred'] = starred;
+        setState(() {
+          constellations[
+                  constellations.indexWhere((e) => e.id == constellationId)]
+              .starred = starred;
+        });
+      }
+      if (updated) {
+        setState(() {
+          updateConstellationsOrdering(constellations);
+        });
+      }
+
       if (updateFields.isNotEmpty) {
         updateFields['updated_at'] = DateTime.now().toIso8601String();
         await txn.update(
@@ -335,65 +402,9 @@ class _Dashboard extends State<Dashboard> {
           whereArgs: [constellationId],
         );
       }
-
-      // Update or insert nodes
-      if (updatedNodes != null) {
-        for (var node in updatedNodes) {
-          if (node.containsKey('id')) {
-            // Update existing node
-            final id = node['id'];
-            await txn.update(
-              'nodes',
-              {
-                'text': node['text'],
-                'type': node['type'],
-                'source': node['source'],
-                'updated_at': DateTime.now().toIso8601String(),
-              },
-              where: 'id = ? AND constellation_id = ?',
-              whereArgs: [id, constellationId],
-            );
-          } else {
-            // Insert new node
-            await txn.insert('nodes', {
-              'text': node['text'],
-              'type': node['type'],
-              'source': node['source'],
-              'constellation_id': constellationId,
-            });
-          }
-        }
-      }
-
-      // Update or insert edges
-      if (updatedEdges != null) {
-        for (var edge in updatedEdges) {
-          if (edge.containsKey('id')) {
-            final id = edge['id'];
-            await txn.update(
-              'edges',
-              {
-                'text': edge['text'],
-                'relation': edge['relation'],
-                'from_node_id': edge['from_node_id'],
-                'to_node_id': edge['to_node_id'],
-                'updated_at': DateTime.now().toIso8601String(),
-              },
-              where: 'id = ? AND constellation_id = ?',
-              whereArgs: [id, constellationId],
-            );
-          } else {
-            await txn.insert('edges', {
-              'text': edge['text'],
-              'relation': edge['relation'],
-              'from_node_id': edge['from_node_id'],
-              'to_node_id': edge['to_node_id'],
-              'constellation_id': constellationId,
-            });
-          }
-        }
-      }
     });
+
+    print("constellationUpdated");
   }
 
   Future<void> deleteConstellation({
@@ -408,11 +419,13 @@ class _Dashboard extends State<Dashboard> {
     // Nodes and edges are automatically deleted due to ON DELETE CASCADE
   }
 
-  void updateDirectoryFilesOrdering(
+  void updateConstellationsOrdering(
     List<Constellation> unordered,
   ) {
     List<Constellation> starred = [];
     List<Constellation> unstarred = [];
+
+    print("unordered");
 
     for (int i = 0; i < unordered.length; i++) {
       if (unordered[i].starred == 0) {
@@ -421,12 +434,13 @@ class _Dashboard extends State<Dashboard> {
         starred.add(unordered[i]);
       }
     }
+    print(starred);
 
     if (sortAttribute == 0) {
       unstarred.sort((a, b) =>
-          DateTime.parse(b.accessDate).compareTo(DateTime.parse(a.accessDate)));
+          DateTime.parse(b.accessedAt).compareTo(DateTime.parse(a.accessedAt)));
       starred.sort((a, b) =>
-          DateTime.parse(b.accessDate).compareTo(DateTime.parse(a.accessDate)));
+          DateTime.parse(b.accessedAt).compareTo(DateTime.parse(a.accessedAt)));
     } else if (sortAttribute == 1) {
       unstarred.sort((a, b) =>
           DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
@@ -434,15 +448,15 @@ class _Dashboard extends State<Dashboard> {
           DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
     } else if (sortAttribute == 1) {
       unstarred.sort((a, b) =>
-          DateTime.parse(b.updateDate).compareTo(DateTime.parse(a.updateDate)));
+          DateTime.parse(b.updatedAt).compareTo(DateTime.parse(a.updatedAt)));
       starred.sort((a, b) =>
-          DateTime.parse(b.updateDate).compareTo(DateTime.parse(a.updateDate)));
+          DateTime.parse(b.updatedAt).compareTo(DateTime.parse(a.updatedAt)));
     } else {
       unstarred.sort((a, b) => a.name.compareTo(b.name));
     }
     setState(() {
-      directoryFilesStarredOrdered = starred;
-      directoryFilesUnstarredOrdered = unstarred;
+      constellationsStarredOrdered = starred;
+      constellationsUnstarredOrdered = unstarred;
     });
   }
 
@@ -509,12 +523,12 @@ class _Dashboard extends State<Dashboard> {
 
   Future<List<Constellation>> getConstellationList() async {
     // Get a reference to the database.
-    final db = await database;
+    Database db = await database;
 
     // Query the table for all the files.
     final List<Map<String, Object?>> constellationMaps =
         await db.query('constellations');
-
+    print("test");
     // Convert the list of each file's fields into a list of `file` objects.
     return [
       for (final {
@@ -525,8 +539,8 @@ class _Dashboard extends State<Dashboard> {
             'directory': directory as String,
             'starred': starred as int,
             'created_at': createdAt as String,
-            'accessDate': accessDate as String,
-            'updateDate': updateDate as String,
+            'accessed_at': accessedAt as String,
+            'updated_at': updatedAt as String,
           } in constellationMaps)
         Constellation(
           id: id,
@@ -536,8 +550,8 @@ class _Dashboard extends State<Dashboard> {
           directory: directory,
           starred: starred,
           createdAt: createdAt,
-          accessDate: accessDate,
-          updateDate: updateDate,
+          accessedAt: accessedAt,
+          updatedAt: updatedAt,
         ),
     ];
   }
@@ -573,8 +587,8 @@ class _Dashboard extends State<Dashboard> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => Test(
-                        constellationName: constellation.name,
-                        id: constellation.id)
+                        constellationID: constellation.id,
+                        constellationName: constellation.concept)
                     // Editor(
                     //       path: pathName,
                     //       isPath: true,
@@ -610,13 +624,11 @@ class _Dashboard extends State<Dashboard> {
                             Spacer(),
                             IconButton(
                               onPressed: () {
-                                setState(() {
-                                  if (constellation.starred == 0) {
-                                    constellation.starred = 1;
-                                  } else {
-                                    constellation.starred = 0;
-                                  }
-                                });
+                                updateConstellation(
+                                    db: database,
+                                    constellationId: constellation.id,
+                                    starred:
+                                        (constellation.starred == 0 ? 1 : 0));
                               },
                               icon: constellation.starred == 0
                                   ? const Icon(Icons.star_outline_rounded,
@@ -635,6 +647,13 @@ class _Dashboard extends State<Dashboard> {
                                         width: 1, color: Colors.black)),
                                 color: Colors.white,
                                 itemBuilder: (BuildContext context) => [
+                                      PopupMenuItem(
+                                        onTap: () => {
+                                          editConstellationDialog(
+                                              context, constellation)
+                                        },
+                                        child: Text('Edit'),
+                                      ),
                                       PopupMenuItem(
                                         onTap: () => {
                                           deleteConstellation(
@@ -665,12 +684,12 @@ class _Dashboard extends State<Dashboard> {
                                 ]),
                                 sortAttribute == 0
                                     ? Text(
-                                        processDate(constellation.accessDate))
+                                        processDate(constellation.accessedAt))
                                     : sortAttribute == 1
                                         ? Text(processDate(
                                             constellation.createdAt))
                                         : Text(processDate(
-                                            constellation.updateDate))
+                                            constellation.updatedAt))
                               ]))
                     ])))));
   }
@@ -835,7 +854,8 @@ class _Dashboard extends State<Dashboard> {
                                                       '$appDocPath/LynkLynkApp/resources/$value')
                                                   .create(recursive: true);
 
-                                              await createConstellation(
+                                              int constellationID =
+                                                  await createConstellation(
                                                 db: database,
                                                 name: value,
                                                 concept: value,
@@ -848,11 +868,11 @@ class _Dashboard extends State<Dashboard> {
                                                 Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          Test(
-                                                              id: 0,
-                                                              constellationName:
-                                                                  value)
+                                                      builder: (context) => Test(
+                                                          constellationID:
+                                                              constellationID,
+                                                          constellationName:
+                                                              value)
                                                       // Editor(path: "$directoryName/$constellationName.txt", isPath: true, name: constellationName)
                                                       ),
                                                 );
@@ -882,6 +902,87 @@ class _Dashboard extends State<Dashboard> {
                         );
                       });
                 })));
+  }
+
+  void editConstellationDialog(
+      BuildContext context, Constellation constellation) {
+    showDialog(
+        context: context,
+        barrierDismissible: true, //
+
+        builder: (BuildContext context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return Transform.translate(
+                  offset: Offset(0, 0),
+                  child: Dialog(
+                    backgroundColor: Colors.transparent,
+                    child: Form(
+                      key: _formKey,
+                      child: Stack(children: [
+                        Container(
+                            width: 480,
+                            height: 480,
+                            decoration: BoxDecoration(
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(10),
+                              ),
+                              color: dashboardColor,
+                              border: Border.all(width: 1, color: Colors.black),
+                            ),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 460,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
+                                  child: TextFormField(
+                                    onChanged: (value) => {
+                                      setState(() {
+                                        validNewConstellationName = true;
+                                      })
+                                    },
+                                    autofocus: true,
+                                    controller: newConstellationNameController,
+                                    decoration: InputDecoration(
+                                        hintText: constellation.name,
+                                        border: InputBorder.none,
+                                        icon: Icon(Icons.add)),
+                                  ),
+                                ),
+                                Container(
+                                  width: 460,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
+                                  child: TextFormField(
+                                    onChanged: (value) => {
+                                      setState(() {
+                                        validNewConstellationName = true;
+                                      })
+                                    },
+                                    autofocus: true,
+                                    controller: newConstellationNameController,
+                                    decoration: InputDecoration(
+                                        hintText: constellation.concept,
+                                        border: InputBorder.none,
+                                        icon: Icon(Icons.add)),
+                                  ),
+                                ),
+                              ],
+                            )),
+                        Container(
+                            margin: EdgeInsets.only(top: 70, left: 5),
+                            child: Text(
+                                style: TextStyle(color: Colors.white),
+                                validNewConstellationName
+                                    ? ""
+                                    : "Invalid constellation name"))
+                      ]),
+                    ),
+                  ));
+            },
+          );
+        });
   }
 
   @override
@@ -975,7 +1076,7 @@ class _Dashboard extends State<Dashboard> {
                     ),
                   ))),
         ),
-        body: directoryFiles.isEmpty
+        body: constellations.isEmpty
             ? Container(
                 alignment: Alignment.center,
                 child: Row(
@@ -1079,9 +1180,6 @@ class _Dashboard extends State<Dashboard> {
                                                       nameMaintain = validname;
                                                     }
 
-                                                    String currentDateTime =
-                                                        DateTime.now()
-                                                            .toString();
                                                     await createConstellation(
                                                       db: database,
                                                       name: "",
@@ -1097,15 +1195,15 @@ class _Dashboard extends State<Dashboard> {
                                   ]),
                               Container(
                                   margin: EdgeInsets.only(top: 20),
-                                  child: Row(children: [
+                                  child: const Row(children: [
                                     Text("Constellations",
                                         style: TextStyle(
                                             color: Colors.black, fontSize: 25)),
                                   ])),
-                              directoryFilesStarredOrdered.isNotEmpty
+                              constellationsStarredOrdered.isNotEmpty
                                   ? Container(
                                       margin: EdgeInsets.only(
-                                          right: 30, bottom: 15, top: 10),
+                                          right: 30, bottom: 15, top: 15),
                                       child: GridView.builder(
                                           gridDelegate:
                                               SliverGridDelegateWithFixedCrossAxisCount(
@@ -1126,17 +1224,17 @@ class _Dashboard extends State<Dashboard> {
                                           ),
                                           shrinkWrap: true,
                                           itemCount:
-                                              directoryFilesStarredOrdered
+                                              constellationsStarredOrdered
                                                   .length,
                                           itemBuilder: (BuildContext context,
                                               int index) {
                                             return dashboardConstellationCard(
-                                                directoryFilesStarredOrdered[
+                                                constellationsStarredOrdered[
                                                     index],
                                                 context);
                                           }))
                                   : const SizedBox(),
-                              directoryFilesStarredOrdered.isNotEmpty
+                              constellationsStarredOrdered.isNotEmpty
                                   ? Divider()
                                   : SizedBox(),
                               Container(
@@ -1162,11 +1260,11 @@ class _Dashboard extends State<Dashboard> {
                                       shrinkWrap: true,
                                       controller: scroller,
                                       itemCount:
-                                          directoryFilesUnstarredOrdered.length,
+                                          constellationsUnstarredOrdered.length,
                                       itemBuilder:
                                           (BuildContext context, int index) {
                                         return dashboardConstellationCard(
-                                            directoryFilesUnstarredOrdered[
+                                            constellationsUnstarredOrdered[
                                                 index],
                                             context);
                                       })),
