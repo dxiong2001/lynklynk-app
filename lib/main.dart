@@ -9,11 +9,14 @@ import 'package:lynklynk/loader.dart';
 import 'package:lynklynk/dashboard.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fleather/fleather.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
-
+  await dotenv.load(fileName: ".env");
   WindowOptions windowOptions = const WindowOptions(
       size: Size(1400, 750),
       center: true,
@@ -72,16 +75,25 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-            textTheme: GoogleFonts.latoTextTheme(
-              Theme.of(context).textTheme,
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+          textTheme: GoogleFonts.quicksandTextTheme().copyWith(
+            headlineMedium: GoogleFonts.quicksand(
+              fontWeight: FontWeight.bold,
             ),
-            primaryColor: foreground,
-            scaffoldBackgroundColor: Colors.white,
-            scrollbarTheme: ScrollbarThemeData(
-              thumbVisibility: WidgetStateProperty.all<bool>(true),
-            )),
-        home: const Scaffold(body: Dashboard()));
+          ),
+          primaryColor: foreground,
+          scaffoldBackgroundColor: Colors.white,
+          scrollbarTheme: ScrollbarThemeData(
+            thumbVisibility: WidgetStateProperty.all<bool>(true),
+          )),
+      home: const Scaffold(body: Dashboard()),
+      localizationsDelegates: const [
+        FleatherLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate
+      ],
+    );
   }
 }

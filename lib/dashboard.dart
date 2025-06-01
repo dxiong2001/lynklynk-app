@@ -17,79 +17,8 @@ import 'package:intl/intl.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:pelaicons/pelaicons.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
-
-class Constellation {
-  int id;
-  String name;
-  String concept;
-  List<String> keyWords;
-  String directory;
-  int starred;
-  final String createdAt;
-  String accessedAt;
-  String updatedAt;
-
-  Constellation({
-    required this.id,
-    required this.name,
-    required this.concept,
-    required this.keyWords,
-    required this.directory,
-    required this.starred,
-    required this.createdAt,
-    required this.accessedAt,
-    required this.updatedAt,
-  });
-
-  Map<String, Object?> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'concept': concept,
-      'key_words': jsonEncode(keyWords),
-      'directory': directory,
-      'starred': starred,
-      'created_at': createdAt,
-      'accessed_at': accessedAt,
-      'updated_at': updatedAt,
-    };
-  }
-
-  @override
-  String toString() {
-    return 'Constellation(id: $id, name: $name, concept: $concept, key_words: ${keyWords.toString()}, directory: $directory, starred: $starred, created_at: $createdAt, accessed_at: $accessedAt, updated_at: $updatedAt)';
-  }
-}
-
-class Node {
-  final int id;
-  final int constellationID;
-  String text;
-  int type; //0: text, 1: image, 2: article (source -> url)
-  String source;
-  final String createdAt;
-  final String updatedAt;
-
-  Node(
-      {required this.id,
-      required this.constellationID,
-      required this.text,
-      required this.type,
-      required this.source,
-      required this.createdAt,
-      required this.updatedAt});
-  Map<String, Object?> toMap() {
-    return {
-      'id': id,
-      'constellation_id': constellationID,
-      'text': text,
-      'type': type,
-      'source': source,
-      'created_at': createdAt,
-      'updated_at': updatedAt,
-    };
-  }
-}
+import 'classes/constellationClass.dart';
+import 'package:lynklynk/functions/keywordSearcher.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -222,6 +151,8 @@ class _Dashboard extends State<Dashboard> {
               id INTEGER PRIMARY KEY, 
               name TEXT, 
               concept TEXT, 
+              summary TEXT,
+              image TEXT,
               key_words TEXT, 
               directory TEXT,
               starred INTEGER,
@@ -262,7 +193,7 @@ class _Dashboard extends State<Dashboard> {
         );
       },
       onUpgrade: _onUpgrade,
-      version: 1,
+      version: 4,
     );
 
     try {
@@ -284,6 +215,18 @@ class _Dashboard extends State<Dashboard> {
     });
   }
 
+  // UPGRADE DATABASE TABLES
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 4) {
+      try {
+        await db.execute(
+            "ALTER TABLE constellations ADD COLUMN image TEXT NOT NULL DEFAULT ''");
+      } catch (e) {
+        print("Column already exists or error adding summary column: $e");
+      }
+    }
+  }
+
   Future<int> createConstellation({
     required Database db,
     required String name,
@@ -293,11 +236,19 @@ class _Dashboard extends State<Dashboard> {
     bool starred = false,
   }) async {
     final now = DateTime.now().toIso8601String();
-
+    var fetchedData = await fetchSummary(concept);
+    String? summary;
+    String? image;
+    if (fetchedData != null) {
+      summary = fetchedData.$1;
+      image = fetchedData.$2;
+    }
     Constellation newConstellation = Constellation(
       id: 0,
       name: name,
       concept: concept,
+      summary: summary ?? "",
+      image: image ?? "",
       keyWords: keyWords,
       directory: directory,
       starred: starred ? 1 : 0,
@@ -317,6 +268,8 @@ class _Dashboard extends State<Dashboard> {
         {
           'name': name,
           'concept': concept,
+          'summary': summary ?? "",
+          'image': image ?? "",
           'key_words': jsonEncode(keyWords),
           'directory': directory,
           'starred': starred ? 1 : 0,
@@ -336,16 +289,14 @@ class _Dashboard extends State<Dashboard> {
     required int constellationId,
     String? name,
     String? concept,
+    String? summary,
+    String? image,
     List<String>? keyWords,
     int? starred,
-    List<Map<String, dynamic>>?
-        updatedNodes, // Includes node 'id' if updating, or omit 'id' to insert
-    List<Map<String, dynamic>>?
-        updatedEdges, // Includes edge 'id' if updating, or omit 'id' to insert
   }) async {
     await db.transaction((txn) async {
       // Update constellation metadata
-
+      String now = DateTime.now().toIso8601String();
       bool updated = false;
       final updateFields = <String, Object?>{};
       if (name != null) {
@@ -365,6 +316,26 @@ class _Dashboard extends State<Dashboard> {
           constellations[
                   constellations.indexWhere((e) => e.id == constellationId)]
               .concept = concept;
+        });
+      }
+      if (summary != null) {
+        updated = true;
+
+        updateFields['summary'] = concept;
+        setState(() {
+          constellations[
+                  constellations.indexWhere((e) => e.id == constellationId)]
+              .summary = summary;
+        });
+      }
+      if (image != null) {
+        updated = true;
+
+        updateFields['image'] = image;
+        setState(() {
+          constellations[
+                  constellations.indexWhere((e) => e.id == constellationId)]
+              .image = image;
         });
       }
       if (keyWords != null) {
@@ -388,13 +359,18 @@ class _Dashboard extends State<Dashboard> {
         });
       }
       if (updated) {
+        print("updated locally");
         setState(() {
+          constellations[
+                  constellations.indexWhere((e) => e.id == constellationId)]
+              .updatedAt = now;
           updateConstellationsOrdering(constellations);
         });
       }
 
       if (updateFields.isNotEmpty) {
-        updateFields['updated_at'] = DateTime.now().toIso8601String();
+        print("updated in db");
+        updateFields['updated_at'] = now;
         await txn.update(
           'constellations',
           updateFields,
@@ -416,7 +392,13 @@ class _Dashboard extends State<Dashboard> {
       where: 'id = ?',
       whereArgs: [constellationId],
     );
+
     // Nodes and edges are automatically deleted due to ON DELETE CASCADE
+
+    setState(() {
+      constellations.removeWhere((e) => e.id == constellationId);
+      updateConstellationsOrdering(constellations);
+    });
   }
 
   void updateConstellationsOrdering(
@@ -446,7 +428,7 @@ class _Dashboard extends State<Dashboard> {
           DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
       starred.sort((a, b) =>
           DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
-    } else if (sortAttribute == 1) {
+    } else if (sortAttribute == 2) {
       unstarred.sort((a, b) =>
           DateTime.parse(b.updatedAt).compareTo(DateTime.parse(a.updatedAt)));
       starred.sort((a, b) =>
@@ -477,50 +459,6 @@ class _Dashboard extends State<Dashboard> {
     return tableNameList;
   }
 
-  // UPGRADE DATABASE TABLES
-  void _onUpgrade(Database db, int oldVersion, int newVersion) {
-    try {
-      // if (oldVersion < 2) {
-      //   db.execute(
-      //       "ALTER TABLE files ADD COLUMN starred INTEGER NOT NULL DEFAULT (0);");
-      // }
-
-      // if (oldVersion < 3) {
-      //   db.execute(
-      //       "ALTER TABLE files ADD COLUMN existingFile INTEGER NOT NULL DEFAULT (0);");
-      // }
-
-      if (oldVersion < 4) {
-        db.execute(
-            'ALTER TABLE files RENAME COLUMN "fileDirectory" TO filePath');
-      }
-      print("Upgrade successful");
-    } catch (e) {
-      print("Upgrade failed: ");
-      print(e);
-    }
-  }
-
-  void _onUpgradeNodeDB(Database db, int oldVersion, int newVersion) async {
-    try {
-      List<String> tableNames = await getAllTableNames(db);
-      print(tableNames);
-      if (oldVersion < 6) {
-        for (int i = 0; i < tableNames.length - 1; i++) {
-          // await db.execute(
-          //     'ALTER TABLE "${tableNames[i]}" ADD COLUMN image INTEGER NOT NULL DEFAULT (0);');
-          await db.execute(
-              'ALTER TABLE "${tableNames[i]}" ADD COLUMN tag TEXT NOT NULL DEFAULT "";');
-        }
-      }
-
-      print("Upgrade successful");
-    } catch (e) {
-      print("Upgrade failed: ");
-      print(e);
-    }
-  }
-
   Future<List<Constellation>> getConstellationList() async {
     // Get a reference to the database.
     Database db = await database;
@@ -535,6 +473,8 @@ class _Dashboard extends State<Dashboard> {
             'id': id as int,
             'name': name as String,
             'concept': concept as String,
+            'summary': summary as String,
+            'image': image as String,
             'key_words': keyWords as String,
             'directory': directory as String,
             'starred': starred as int,
@@ -546,6 +486,8 @@ class _Dashboard extends State<Dashboard> {
           id: id,
           name: name,
           concept: concept,
+          summary: summary,
+          image: image,
           keyWords: json.decode(keyWords).cast<String>().toList(),
           directory: directory,
           starred: starred,
@@ -587,8 +529,10 @@ class _Dashboard extends State<Dashboard> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => Test(
-                        constellationID: constellation.id,
-                        constellationName: constellation.concept)
+                          constellationID: constellation.id,
+                          constellationName: constellation.name,
+                          constellationConcept: constellation.concept,
+                        )
                     // Editor(
                     //       path: pathName,
                     //       isPath: true,
@@ -668,10 +612,25 @@ class _Dashboard extends State<Dashboard> {
                                     color: Color.fromARGB(255, 14, 14, 14))),
                           ])),
                       ListTile(
-                          title: Text(
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 20),
-                              constellation.name),
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              constellation.name == constellation.concept
+                                  ? SizedBox()
+                                  : Text(
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 18,
+                                          color: Color.fromARGB(
+                                              255, 147, 147, 147)),
+                                      constellation.concept),
+                              Text(
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22),
+                                  constellation.name)
+                            ],
+                          ),
                           subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -679,8 +638,8 @@ class _Dashboard extends State<Dashboard> {
                                   sortAttribute == 0
                                       ? const Text('Access Date:')
                                       : sortAttribute == 1
-                                          ? const Text('Access Date')
-                                          : const Text('Access Date:')
+                                          ? const Text('Create Date')
+                                          : const Text('Update Date:')
                                 ]),
                                 sortAttribute == 0
                                     ? Text(
@@ -710,15 +669,18 @@ class _Dashboard extends State<Dashboard> {
   }
 
   bool _validatename(String name) {
-    var existingItem = nameList.firstWhereOrNull((element) => element == name);
-    print(nameList);
+    var existingItem =
+        constellations.firstWhereOrNull((element) => element.name == name);
+
     return existingItem != null;
   }
 
   String _validname(String name) {
     int index = 0;
     String newname = name;
-    while (nameList.firstWhereOrNull((element) => element == newname) != null) {
+    while (
+        constellations.firstWhereOrNull((element) => element.name == newname) !=
+            null) {
       index += 1;
       newname = "$name ($index)";
     }
@@ -872,6 +834,8 @@ class _Dashboard extends State<Dashboard> {
                                                           constellationID:
                                                               constellationID,
                                                           constellationName:
+                                                              value,
+                                                          constellationConcept:
                                                               value)
                                                       // Editor(path: "$directoryName/$constellationName.txt", isPath: true, name: constellationName)
                                                       ),
@@ -906,6 +870,15 @@ class _Dashboard extends State<Dashboard> {
 
   void editConstellationDialog(
       BuildContext context, Constellation constellation) {
+    int starred = constellation.starred;
+    TextEditingController nameController = TextEditingController(
+        text: constellation.name == constellation.concept
+            ? null
+            : constellation.name);
+    TextEditingController conceptController =
+        TextEditingController(text: constellation.concept);
+    List<int> keyWords = [];
+
     showDialog(
         context: context,
         barrierDismissible: true, //
@@ -916,13 +889,243 @@ class _Dashboard extends State<Dashboard> {
               return Transform.translate(
                   offset: Offset(0, 0),
                   child: Dialog(
-                    backgroundColor: Colors.transparent,
-                    child: Form(
-                      key: _formKey,
-                      child: Stack(children: [
-                        Container(
+                      backgroundColor: Colors.transparent,
+                      child: Container(
+                          // height:MediaQuery.sizeOf(context).height,
+                          child:
+                              Stack(alignment: Alignment.topCenter, children: [
+                        Card(
+                            shape: const RoundedRectangleBorder(
+                              side: BorderSide(width: 1),
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(15),
+                              ),
+                            ),
+                            color: Color.fromARGB(255, 255, 255, 255),
+                            shadowColor: Colors.transparent,
+                            child: Container(
+                                width: 480,
+                                height: 300,
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Container(
+                                          margin: EdgeInsets.only(
+                                              top: 10,
+                                              left: 10,
+                                              bottom: 10,
+                                              right: 10),
+                                          child: Row(children: [
+                                            Container(
+                                                padding:
+                                                    const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                    color: Color.fromARGB(
+                                                        204, 235, 235, 235),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            20)),
+                                                child: Icon(Icons.gesture)),
+                                            Spacer(),
+                                            OutlinedButton(
+                                                onPressed: () {
+                                                  print(nameController
+                                                      .text.isEmpty);
+                                                  print(conceptController
+                                                          .text ==
+                                                      constellation.concept);
+
+                                                  updateConstellation(
+                                                    db: database,
+                                                    constellationId:
+                                                        constellation.id,
+                                                    name: ((nameController
+                                                                .text.isEmpty ||
+                                                            nameController
+                                                                    .text ==
+                                                                conceptController
+                                                                    .text)
+                                                        ? (conceptController
+                                                                    .text ==
+                                                                nameController
+                                                                    .text
+                                                            ? null
+                                                            : conceptController
+                                                                .text)
+                                                        : nameController.text ==
+                                                                constellation
+                                                                    .name
+                                                            ? null
+                                                            : nameController
+                                                                .text),
+                                                    concept: conceptController
+                                                                .text ==
+                                                            constellation
+                                                                .concept
+                                                        ? null
+                                                        : conceptController
+                                                            .text,
+                                                    starred: starred ==
+                                                            constellation
+                                                                .starred
+                                                        ? null
+                                                        : starred,
+                                                  );
+                                                  Navigator.pop(context);
+                                                },
+                                                style: OutlinedButton.styleFrom(
+                                                  side: BorderSide(
+                                                      color:
+                                                          const Color.fromARGB(
+                                                              255, 0, 0, 0),
+                                                      width:
+                                                          1), // border color and width
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            40),
+                                                  ),
+                                                ),
+                                                child: Text("Save")),
+                                            const SizedBox(
+                                              width: 10,
+                                            ),
+                                            IconButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  starred =
+                                                      starred == 1 ? 0 : 1;
+                                                });
+                                              },
+                                              icon: starred == 0
+                                                  ? const Icon(
+                                                      Icons
+                                                          .star_outline_rounded,
+                                                      size: 20,
+                                                      color: Color.fromARGB(
+                                                          255, 14, 14, 14))
+                                                  : Icon(Icons.star_rounded,
+                                                      size: 20,
+                                                      color: Colors.black),
+                                            ),
+                                            const SizedBox(
+                                              width: 10,
+                                            ),
+                                            PopupMenuButton(
+                                                tooltip: "",
+                                                shape:
+                                                    ContinuousRectangleBorder(
+                                                        side: BorderSide(
+                                                            width: 1,
+                                                            color:
+                                                                Colors.black)),
+                                                color: Colors.white,
+                                                itemBuilder:
+                                                    (BuildContext context) => [
+                                                          PopupMenuItem(
+                                                            onTap: () {
+                                                              deleteConstellation(
+                                                                  db: database,
+                                                                  constellationId:
+                                                                      constellation
+                                                                          .id);
+                                                              Navigator.pop(
+                                                                  context);
+                                                            },
+                                                            child:
+                                                                Text('Delete'),
+                                                          ),
+                                                        ],
+                                                icon: const Icon(
+                                                    Icons.more_horiz,
+                                                    size: 20,
+                                                    color: Color.fromARGB(
+                                                        255, 14, 14, 14))),
+                                          ])),
+                                      ListTile(
+                                          title: Column(children: [
+                                            Tooltip(
+                                                margin: const EdgeInsets.only(
+                                                    bottom: 10),
+                                                preferBelow: false,
+                                                message:
+                                                    'Constellation concept',
+                                                child: TextField(
+                                                  controller: conceptController,
+                                                  decoration: InputDecoration(
+                                                    hintText: 'Enter text',
+                                                    fillColor: Colors.grey[
+                                                        200], // Background color
+                                                    filled: true,
+                                                    border: InputBorder
+                                                        .none, // No underline
+                                                    enabledBorder:
+                                                        InputBorder.none,
+                                                    focusedBorder:
+                                                        InputBorder.none,
+                                                    contentPadding:
+                                                        EdgeInsets.symmetric(
+                                                            horizontal: 12,
+                                                            vertical: 10),
+                                                  ),
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 20),
+                                                )),
+                                            SizedBox(height: 5),
+                                            Tooltip(
+                                                margin: const EdgeInsets.only(
+                                                    top: 10),
+                                                preferBelow: true,
+                                                message: constellation.name ==
+                                                        constellation.concept
+                                                    ? 'By default this is the same as the concept'
+                                                    : 'Constellation name',
+                                                child: TextField(
+                                                  controller: nameController,
+                                                  decoration: InputDecoration(
+                                                    hintText: 'Enter name',
+                                                    fillColor: Colors.grey[
+                                                        200], // Background color
+                                                    filled: true,
+                                                    border: InputBorder
+                                                        .none, // No underline
+                                                    enabledBorder:
+                                                        InputBorder.none,
+                                                    focusedBorder:
+                                                        InputBorder.none,
+                                                    contentPadding:
+                                                        EdgeInsets.symmetric(
+                                                            horizontal: 12,
+                                                            vertical: 10),
+                                                  ),
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 25),
+                                                )),
+                                            SizedBox(height: 10),
+                                          ]),
+                                          subtitle: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(children: [
+                                                  Text('Update Date')
+                                                ]),
+                                                Text(processDate(DateTime.now()
+                                                    .toIso8601String()))
+                                              ]))
+                                    ]))),
+                        Transform.translate(
+                          offset: Offset(0, 0),
+                          child: Container(
+                            margin: EdgeInsets.only(top: 340),
                             width: 480,
-                            height: 480,
                             decoration: BoxDecoration(
                               borderRadius: const BorderRadius.all(
                                 Radius.circular(10),
@@ -930,56 +1133,37 @@ class _Dashboard extends State<Dashboard> {
                               color: dashboardColor,
                               border: Border.all(width: 1, color: Colors.black),
                             ),
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 460,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 5),
-                                  child: TextFormField(
-                                    onChanged: (value) => {
-                                      setState(() {
-                                        validNewConstellationName = true;
-                                      })
-                                    },
-                                    autofocus: true,
-                                    controller: newConstellationNameController,
-                                    decoration: InputDecoration(
-                                        hintText: constellation.name,
-                                        border: InputBorder.none,
-                                        icon: Icon(Icons.add)),
-                                  ),
-                                ),
-                                Container(
-                                  width: 460,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 5),
-                                  child: TextFormField(
-                                    onChanged: (value) => {
-                                      setState(() {
-                                        validNewConstellationName = true;
-                                      })
-                                    },
-                                    autofocus: true,
-                                    controller: newConstellationNameController,
-                                    decoration: InputDecoration(
-                                        hintText: constellation.concept,
-                                        border: InputBorder.none,
-                                        icon: Icon(Icons.add)),
-                                  ),
-                                ),
-                              ],
-                            )),
-                        Container(
-                            margin: EdgeInsets.only(top: 70, left: 5),
-                            child: Text(
-                                style: TextStyle(color: Colors.white),
-                                validNewConstellationName
-                                    ? ""
-                                    : "Invalid constellation name"))
-                      ]),
-                    ),
-                  ));
+                            child: Container(
+                              width: 480,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              child: TextFormField(
+                                onChanged: (value) => {
+                                  setState(() {
+                                    validNewConstellationName = true;
+                                  })
+                                },
+                                autofocus: true,
+                                controller: newConstellationNameController,
+                                decoration: const InputDecoration(
+                                    hintText: "Add key term",
+                                    border: InputBorder.none,
+                                    icon: Icon(Icons.add)),
+                                onFieldSubmitted: (value) async {
+                                  _formKey.currentState?.save();
+
+                                  if (value.isEmpty) {
+                                    setState(() {
+                                      validNewConstellationName = false;
+                                    });
+                                    return;
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ]))));
             },
           );
         });
@@ -1195,10 +1379,47 @@ class _Dashboard extends State<Dashboard> {
                                   ]),
                               Container(
                                   margin: EdgeInsets.only(top: 20),
-                                  child: const Row(children: [
+                                  child: Row(children: [
                                     Text("Constellations",
                                         style: TextStyle(
                                             color: Colors.black, fontSize: 25)),
+                                    Spacer(),
+                                    Container(
+                                        padding:
+                                            EdgeInsets.symmetric(horizontal: 8),
+                                        child: DropdownButton<String>(
+                                          elevation: 0,
+                                          underline:
+                                              SizedBox(), // Removes underline
+                                          dropdownColor: Colors
+                                              .white, // White background for dropdown
+                                          style: TextStyle(
+                                              color:
+                                                  Colors.black), // Text color
+                                          iconEnabledColor: Colors
+                                              .black, // Dropdown arrow color
+                                          value:
+                                              sortAttributeList[sortAttribute],
+                                          items: sortAttributeList
+                                              .map((String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text(value.toString()),
+                                            );
+                                          }).toList(),
+                                          onChanged: (String? newValue) {
+                                            setState(() {
+                                              if (newValue != null) {
+                                                sortAttribute =
+                                                    sortAttributeList
+                                                        .indexOf(newValue);
+                                              }
+                                              updateConstellationsOrdering(
+                                                  constellations);
+                                            });
+                                          },
+                                        )),
+                                    SizedBox(width: 26)
                                   ])),
                               constellationsStarredOrdered.isNotEmpty
                                   ? Container(
