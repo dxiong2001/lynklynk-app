@@ -130,7 +130,7 @@ class _Dashboard extends State<Dashboard> {
     }
   }
 
-  Future<void> deleteMyDatabase(String dbName) async {
+  Future<void> deleteDatabase(String dbName) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, dbName);
 
@@ -141,9 +141,12 @@ class _Dashboard extends State<Dashboard> {
 
   _asyncLoadDB() async {
     WidgetsFlutterBinding.ensureInitialized();
-
     database = await openDatabase(
       join(await getDatabasesPath(), 'lynklynk_database.db'),
+      onConfigure: (db) async {
+        // 🔑 Enable foreign key support
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (db, version) async {
         // Constellations table
         await db.execute(
@@ -167,7 +170,7 @@ class _Dashboard extends State<Dashboard> {
           '''CREATE TABLE nodes(
               id INTEGER PRIMARY KEY, 
               constellation_id INTEGER NOT NULL,
-              text TEXT UNIQUE NOT NULL, 
+              text TEXT NOT NULL, 
               type INTEGER NOT NULL, 
               source TEXT, 
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
@@ -262,25 +265,49 @@ class _Dashboard extends State<Dashboard> {
       constellations.add(newConstellation);
       updateConstellationsOrdering(constellations);
     });
-    // Insert the constellation into the database and return its ID
-    int newConstellationId = await db.insert(
-        'constellations',
-        {
-          'name': name,
-          'concept': concept,
-          'summary': summary ?? "",
-          'image': image ?? "",
-          'key_words': jsonEncode(keyWords),
-          'directory': directory,
-          'starred': starred ? 1 : 0,
-          'created_at': now,
-          'accessed_at': now,
-          'updated_at': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace);
-    //Update constellation ID with returned ID value
-    constellations[constellations.length - 1].id = newConstellationId;
 
+    int newConstellationId = -1;
+
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+
+      batch.insert(
+          'constellations',
+          {
+            'name': name,
+            'concept': concept,
+            'summary': summary ?? "",
+            'image': image ?? "",
+            'key_words': jsonEncode(keyWords),
+            'directory': directory,
+            'starred': starred ? 1 : 0,
+            'created_at': now,
+            'accessed_at': now,
+            'updated_at': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+
+      final int newID = (await batch.commit()).whereType<int>().toList()[0];
+      newConstellationId = newID;
+      print("test");
+      constellations[constellations.length - 1].id = newID;
+      final dependentBatch = txn.batch();
+      var n = {
+        'constellation_id': newID,
+        'text': concept,
+        'type': 0,
+        'source': '',
+        'created_at': now,
+        'updated_at': now,
+      };
+      dependentBatch.insert('nodes', n);
+      await dependentBatch.commit();
+    });
+    final List<Map<String, dynamic>> rows = await database.query("nodes");
+
+    for (final row in rows) {
+      print(row);
+    }
     return newConstellationId;
   }
 
@@ -416,7 +443,6 @@ class _Dashboard extends State<Dashboard> {
         starred.add(unordered[i]);
       }
     }
-    print(starred);
 
     if (sortAttribute == 0) {
       unstarred.sort((a, b) =>

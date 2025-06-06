@@ -31,6 +31,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lynklynk/classes/connectionClass.dart';
 import 'package:lynklynk/classes/protoMainNodeClass.dart';
 import 'package:lynklynk/classes/protoSecondaryNodeClass.dart';
+import 'package:lynklynk/classes/edgeClass.dart';
+import 'package:lynklynk/classes/smartTextWidgetClass.dart';
+import 'package:image_picker/image_picker.dart';
+
+class AddIntent extends Intent {
+  const AddIntent();
+}
 
 class Test extends StatefulWidget {
   const Test({
@@ -68,13 +75,13 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   late String constellationName;
   late String constellationConcept;
   late Constellation constellation;
-
+  Map<(int, int), String> relationMap = {};
   Map<int, List<int>> generalToDetail = {};
   Map<int, List<int>> detailToGeneral = {};
 
   //list of all nodes in the constellation
-  List<Node> nodeList = [];
-  Map<int, Node> nodeMap = {};
+  late Map<int, Node> nodeMap;
+  Map<int, Node> topLevelMap = {};
 
   //bool for editing mode
   bool editingMode = true;
@@ -117,8 +124,6 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   // Color primary2 = const Color.fromRGBO(250, 218, 122, 1);
   // Color primary3 = const Color.fromRGBO(240, 160, 75, 1);
 
-  Color backgroundColor = Color.fromARGB(255, 255, 255, 255);
-
   SearchController search = SearchController();
 
   var database;
@@ -136,10 +141,6 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   Map<int, Node> idNodeMap = {};
   Map<int, List<Node>> edgeMap = {};
 
-  final FocusNode _focusNode = FocusNode();
-  final GlobalKey<fleather.EditorState> _editorKey = GlobalKey();
-  fleather.FleatherController? _editorController;
-
   @override
   void initState() {
     constellationID = widget.constellationID;
@@ -155,7 +156,6 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     };
 
     super.initState();
-    _editorController = fleather.FleatherController();
 
     _controller = AnimationController(
       vsync: this,
@@ -184,11 +184,31 @@ class _Test extends State<Test> with TickerProviderStateMixin {
       duration: Duration(milliseconds: 800),
     );
 
+    _primarySceneOffset = Tween<Offset>(
+      begin: Offset(0, 0),
+      end: Offset(-1.5, 0), // slide up off screen
+    ).animate(CurvedAnimation(
+      parent: _sceneController,
+      curve: Curves.easeInOut,
+    ));
+    _secondarySceneOffset = Tween<Offset>(
+      begin: Offset(1.5, 0),
+      end: Offset(0, 0), // slide up off screen
+    ).animate(CurvedAnimation(
+      parent: _sceneController,
+      curve: Curves.easeInOut,
+    ));
+
+    _primarySceneController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 800),
+    );
+
     constellationDashboardSceneOffset = Tween<Offset>(
       begin: Offset(0, 0),
       end: Offset(0, -1.5), // slide up off screen
     ).animate(CurvedAnimation(
-      parent: _sceneController,
+      parent: _primarySceneController,
       curve: Curves.easeInOut,
     ));
 
@@ -196,7 +216,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
       begin: Offset(0, 1.4), // start below
       end: Offset(0, 0), // end at center
     ).animate(CurvedAnimation(
-      parent: _sceneController,
+      parent: _primarySceneController,
       curve: Curves.easeInOut,
     ));
 
@@ -204,7 +224,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
       begin: Offset(0, -2), // start below
       end: Offset(0, 0), // end at center
     ).animate(CurvedAnimation(
-      parent: _sceneController,
+      parent: _primarySceneController,
       curve: Curves.easeInOut,
     ));
 
@@ -231,14 +251,37 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     ).animate(CurvedAnimation(
         parent: _sceneColorController, curve: Curves.slowMiddle));
 
+    _secondarySceneController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 800),
+    );
+
+    directorySceneOffset = Tween<Offset>(
+      begin: Offset(0, 0), // start below
+      end: Offset(0, -1.5), // end at center
+    ).animate(CurvedAnimation(
+      parent: _secondarySceneController,
+      curve: Curves.easeInOut,
+    ));
+
+    expandedViewOffset = Tween<Offset>(
+      begin: Offset(0, 2), // start below
+      end: Offset(0, 0), // end at center
+    ).animate(CurvedAnimation(
+      parent: _secondarySceneController,
+      curve: Curves.easeInOut,
+    ));
+
     connectionList = [
       newConnection(list: [
         ProtoSecondaryNode(
             controller: TextEditingController(),
-            modifierController: TextEditingController(text: "")),
+            modifierController: TextEditingController(text: ""),
+            focus: FocusNode()),
         ProtoSecondaryNode(
             controller: TextEditingController(),
-            modifierController: TextEditingController(text: ""))
+            modifierController: TextEditingController(text: ""),
+            focus: FocusNode())
       ])
     ];
 
@@ -248,13 +291,20 @@ class _Test extends State<Test> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _controller.dispose();
     _controller1.dispose();
+    _sceneController.dispose();
+    _primarySceneController.dispose();
+    _sceneColorController.dispose();
+    _secondarySceneController.dispose();
     search.dispose();
     // _editorFocusNode.dispose();
     super.dispose();
   }
 
   _asyncLoadDB() async {
+    print("load db");
+
     //loading screen animation
     await Future.delayed(const Duration(milliseconds: 500));
     setState(() {
@@ -265,35 +315,45 @@ class _Test extends State<Test> with TickerProviderStateMixin {
       _loadingVisible = false;
     });
     await Future.delayed(const Duration(milliseconds: 500));
-    database = openDatabase(
+    database = await openDatabase(
       // Set the path to the database. Note: Using the `join` function from the
       // `path` package is best practice to ensure the path is correctly
       // constructed for each platform.
       Path.join(await getDatabasesPath(), 'lynklynk_database.db'),
       // When the database is first created, create a table to store files.
-
+      onConfigure: (db) async {
+        // 🔑 Enable foreign key support
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onUpgrade: _onUpgrade,
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.
       version: 1,
     );
+    final List<Map<String, dynamic>> rows = await database.query("nodes");
 
+    for (final row in rows) {
+      print(row);
+    }
     try {
       List<Node> queryResultsList = await getNodeList(constellationID);
-
+      List<Edge> edgeList = await getEdgeList(constellationID);
+      print("list: " + queryResultsList.toString());
       if (queryResultsList.isNotEmpty) {
         editingMode = false;
         focusedNode = queryResultsList[0];
-      }
+      } else {}
 
       constellation = await getConstellation(constellationID);
-
-      print(constellation.toString());
-
+      print("got constellation");
       setState(() {
-        nodeList = queryResultsList;
+        getEdgeMappings(edgeList);
         nodeMap = {for (Node n in queryResultsList) n.id: n};
-
+        for (int n in nodeMap.keys) {
+          if (detailToGeneral[n] == null) {
+            topLevelMap[n] = nodeMap[n]!;
+          }
+        }
         loading = false;
       });
     } catch (e) {
@@ -305,11 +365,13 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     // Get a reference to the database.
     final db = await database;
     // Query the table for all the files.
+    print(constellationId);
     final List<Map<String, Object?>> nodeMaps = await db.query(
       'nodes',
       where: 'constellation_id = ?',
       whereArgs: [constellationId],
     );
+    print(nodeMaps);
     // Convert the list of each file's fields into a list of `file` objects.
     return [
       for (final {
@@ -333,6 +395,38 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     ];
   }
 
+  Future<List<Edge>> getEdgeList(int constellationId) async {
+    // Get a reference to the database.
+    final db = await database;
+    // Query the table for all the files.
+    final List<Map<String, Object?>> nodeMaps = await db.query(
+      'edges',
+      where: 'constellation_id = ?',
+      whereArgs: [constellationId],
+    );
+    // Convert the list of each file's fields into a list of `file` objects.
+    return [
+      for (final {
+            'id': id as int,
+            'constellation_id': constellationID as int,
+            'from_node_id': fromNodeID as int,
+            'to_node_id': toNodeID as int,
+            'relation': relation as String,
+            'created_at': createdAt as String,
+            'updated_at': updatedAt as String,
+          } in nodeMaps)
+        Edge(
+          id: id,
+          constellationID: constellationID,
+          fromNodeID: fromNodeID,
+          toNodeID: toNodeID,
+          relation: relation,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+        )
+    ];
+  }
+
   Future<Constellation> getConstellation(int id) async {
     // Get a reference to the database.
     Database db = await database;
@@ -340,7 +434,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     // Query the table for all the files.
     final List<Map<String, Object?>> constellationMaps =
         await db.query('constellations', where: 'id = ?', whereArgs: [id]);
-    print(constellationMaps);
+    print("get constellation: " + constellationMaps.toString());
     // Convert the list of each file's fields into a list of `file` objects.
     return [
       for (final {
@@ -427,6 +521,31 @@ class _Test extends State<Test> with TickerProviderStateMixin {
         .toList());
   }
 
+  void addToMap(int key, int value, Map map) {
+    // Get the list or create a new one if the key doesn't exist
+    List<int> list = map[key] ?? [];
+
+    // Add the value only if it’s not already in the list
+    if (!list.contains(value)) {
+      list.add(value);
+    }
+
+    // Assign the updated list back to the map
+    setState(() {
+      map[key] = list;
+    });
+  }
+
+  void getEdgeMappings(List<Edge> edges) {
+    for (Edge e in edges) {
+      addToMap(e.fromNodeID, e.toNodeID, generalToDetail);
+      addToMap(e.toNodeID, e.fromNodeID, detailToGeneral);
+      relationMap[(e.fromNodeID, e.toNodeID)] = e.relation;
+    }
+
+    setState(() {});
+  }
+
   List<String> getNodeConnectionsParsed(int nodeID) {
     return getNodeConnections(nodeID).map((e) => e.text).toList();
   }
@@ -474,11 +593,13 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     List<Node> returnList = [];
 
     if (!matchCase) {
-      returnList =
-          nodeList.where((e) => e.text.startsWith(controller.text)).toList();
+      returnList = nodeMap.values
+          .where((e) => e.text.startsWith(controller.text))
+          .toList();
     } else {
-      returnList =
-          nodeList.where((e) => e.text.startsWith(controller.text)).toList();
+      returnList = nodeMap.values
+          .where((e) => e.text.startsWith(controller.text))
+          .toList();
     }
     print(returnList.map((e) => e.text));
     if (returnList.isEmpty) {
@@ -699,29 +820,6 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     "I"
   ];
 
-  Offset _lastPosition = Offset.zero;
-
-  void _onPanUpdate(DragUpdateDetails details, Offset center) {
-    final touch = details.localPosition;
-
-    final double dx = touch.dx - center.dx;
-    final double dy = touch.dy - center.dy;
-
-    final double currentAngle = atan2(dy, dx);
-
-    final double dxLast = _lastPosition.dx - center.dx;
-    final double dyLast = _lastPosition.dy - center.dy;
-    final double lastAngle = atan2(dyLast, dxLast);
-
-    final delta = currentAngle - lastAngle;
-
-    setState(() {
-      angle += delta;
-    });
-
-    _lastPosition = touch;
-  }
-
   Node? secondaryNode;
   bool switchMain = false;
 
@@ -752,10 +850,114 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   //       ));
   // }
 
+  List<T> mergeUniqueBy<T, K>(
+    List<T> listA,
+    List<T> listB,
+    K Function(T) keySelector,
+  ) {
+    final seen = <K>{};
+    return [...listA, ...listB]
+        .where((item) => seen.add(keySelector(item)))
+        .toList();
+  }
+
+  void createNode(Connection c) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    List<Node> newNodeList = [];
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      var n = {
+        'constellation_id': constellation.id,
+        'text': c.mainNode.controller.text,
+        'type': c.mainNode.type,
+        'source': c.mainNode.externalFileLoaded ?? "",
+        'created_at': now,
+        'updated_at': now,
+      };
+      batch.insert('nodes', n);
+      newNodeList.add(Node(
+          id: -1,
+          constellationID: constellation.id,
+          text: c.mainNode.controller.text,
+          type: c.mainNode.type,
+          source: c.mainNode.externalFileLoaded ?? "",
+          createdAt: now,
+          updatedAt: now));
+      int secondaryCount = 0;
+      for (final s in c.secondaryNodeList) {
+        if (s.controller.text.isEmpty) continue;
+
+        secondaryCount++;
+        batch.insert(
+          'nodes',
+          {
+            'constellation_id': constellation.id,
+            'text': s.controller.text,
+            'type': s.type,
+            'source': s.externalFileLoaded ?? '',
+            'created_at': now,
+            'updated_at': now,
+          },
+        );
+        newNodeList.add(Node(
+            id: -1,
+            constellationID: constellation.id,
+            text: s.controller.text,
+            type: s.type,
+            source: s.externalFileLoaded ?? '',
+            createdAt: now,
+            updatedAt: now));
+      }
+
+      // Do NOT use `noResult: true` if you want IDs
+      final List<int> results1 = (await batch.commit())
+          .whereType<int>()
+          .toList(); // This returns a list of inserted row IDs
+
+      final Map<int, Node> toInsert = Map.fromIterables(results1, newNodeList);
+      nodeMap = {...nodeMap, ...toInsert};
+      final dependentBatch = txn.batch();
+      int mainID = results1[0];
+      List<int> castList = (results1.length > 1 ? results1 : []);
+      generalToDetail[mainID] =
+          {...(generalToDetail[mainID] ?? []), ...castList}.toList();
+      for (int i = 1; i < results1.length; i++) {
+        detailToGeneral[results1[i]] = {
+          ...(detailToGeneral[results1[i]] ?? []),
+          ...[mainID]
+        }.toList();
+        relationMap[(mainID, i)] = c.secondaryNodeList[i - 1].controller.text;
+      }
+
+      if (secondaryCount == 0) {}
+
+      for (int s = 0; s < c.secondaryNodeList.length; s++) {
+        if (c.secondaryNodeList[s].controller.text.isEmpty) continue;
+        dependentBatch.insert("edges", {
+          "constellation_id": constellation.id,
+          "from_node_id": results1[0],
+          "to_node_id": results1[s + 1],
+          "relation": c.secondaryNodeList[s].modifierController.text,
+          "created_at": now,
+          "updated_at": now,
+        });
+      }
+      final results2 = await dependentBatch.commit();
+
+      return (results1, results2);
+    });
+    print(nodeMap);
+    setState(() {});
+
+    switchScene(true);
+  }
+
   Color primary1 = const Color.fromARGB(255, 108, 99, 255);
   Color primary2 = const Color.fromARGB(255, 63, 61, 86);
   Color primary3 = const Color.fromARGB(255, 255, 101, 132);
   Color selectedColor = const Color.fromARGB(127, 255, 255, 255);
+  Color backgroundColor = const Color.fromARGB(255, 218, 218, 234);
 
   late List<Connection> connectionList;
 
@@ -773,33 +975,57 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   }) {
     if (list == null) {
       return Connection(
-        mainNode:
-            ProtoMainNode(controller: TextEditingController(text: mainNode)),
+        mainNode: ProtoMainNode(
+            controller: TextEditingController(text: mainNode),
+            focus: FocusNode()),
         secondaryNodeList: [
           ProtoSecondaryNode(
               controller: TextEditingController(),
-              modifierController: TextEditingController(text: modifier))
+              modifierController: TextEditingController(text: modifier),
+              focus: FocusNode())
         ],
       );
     } else {
       return Connection(
-        mainNode:
-            ProtoMainNode(controller: TextEditingController(text: mainNode)),
+        mainNode: ProtoMainNode(
+            controller: TextEditingController(text: mainNode),
+            focus: FocusNode()),
         secondaryNodeList: list,
       );
     }
   }
 
+  void resetConnections() {
+    setState(() {
+      connectionList = [
+        newConnection(list: [
+          ProtoSecondaryNode(
+              controller: TextEditingController(),
+              modifierController: TextEditingController(text: ""),
+              focus: FocusNode()),
+          ProtoSecondaryNode(
+              controller: TextEditingController(),
+              modifierController: TextEditingController(text: ""),
+              focus: FocusNode())
+        ])
+      ];
+    });
+  }
+
   void addConnection(
       {int index = -1, String mainNode = "", String modifier = ""}) {
+    int addIndex = connectionList.length;
     setState(() {
       if (index > -1) {
         connectionList.insert(
             index + 1, newConnection(mainNode: mainNode, modifier: modifier));
+        addIndex = index + 1;
       } else {
         connectionList
             .add(newConnection(mainNode: mainNode, modifier: modifier));
       }
+      connectionList[addIndex].mainNode.focus.requestFocus();
+      currentMainProtoNode = addIndex;
     });
   }
 
@@ -823,30 +1049,67 @@ class _Test extends State<Test> with TickerProviderStateMixin {
         .format(dateTime.toLocal()); // convert to local time if needed
   }
 
+  void switchScene(bool forward) {
+    if (forward) {
+      setState(() {
+        scene = 3;
+      });
+      _sceneController.forward();
+    } else {
+      _sceneController.reverse().then((_) {
+        setState(() {
+          scene = 1;
+        });
+      });
+    }
+  }
+
+  void switchSecondaryScene(bool forward) {
+    if (forward) {
+      setState(() {
+        scene = 4;
+      });
+      _secondarySceneController.forward(); // animate transition
+    } else {
+      _secondarySceneController.reverse().then((_) {
+        setState(() {
+          scene = 3;
+        });
+      });
+    }
+  }
+
   void _onPlusPressed() {
     _sceneColorController.forward(from: 0);
     setState(() {
       scene = 1;
     });
-    _sceneController.forward(); // animate transition
+    _primarySceneController.forward(); // animate transition
   }
 
   void _onBackPressed() {
     _sceneColorController.forward(from: 0);
-    _sceneController.reverse().then((_) {
+    _primarySceneController.reverse().then((_) {
       setState(() {
         scene = 0;
       });
     });
   }
 
-  int scene = 0;
+  int scene = 0; // 0: dashboard, 1: new node, 2: directory 3: expanded view
   late AnimationController _sceneController;
+  late Animation<Offset> _primarySceneOffset;
+  late Animation<Offset> _secondarySceneOffset;
+  late AnimationController _primarySceneController;
   late Animation<Offset> constellationDashboardSceneOffset;
   late Animation<Offset> addNodeSceneOffset;
   late Animation<Offset> addNodeSceneControllerOffset;
   late AnimationController _sceneColorController;
   late Animation<Color?> _borderColor;
+  late AnimationController _secondarySceneController;
+  late Animation<Offset> directorySceneOffset;
+  late Animation<Offset> expandedViewOffset;
+
   Widget sceneController(BuildContext context) {
     return Stack(
       children: [
@@ -886,34 +1149,237 @@ class _Test extends State<Test> with TickerProviderStateMixin {
         ));
   }
 
-  Widget nodeTypeWidget(TextEditingController controller,
-      {String? type, bool selected = false}) {
-    Widget nodeTypeSelect = TextField(
-      controller: controller,
-      cursorColor: Colors.black,
-      maxLines: null, // 👈 Allow unlimited lines
-      expands: false, // 👈 Don't force fill parent
-      keyboardType: TextInputType.multiline,
-      decoration: InputDecoration(
-        hintText: "Node Term",
-        hintStyle: TextStyle(
-            color: const Color.fromARGB(255, 193, 193, 193),
-            fontWeight: FontWeight.bold),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-      ),
-    );
+  final List<IconData> nodeTypeList = [Pelaicons.textBold, Pelaicons.imageBold];
+
+  IconData iconFromValue(int type) {
+    if (type == 0) {
+      return Pelaicons.textBold;
+    } else if (type == 1) {
+      return Pelaicons.imageBold;
+    } else {
+      return Pelaicons.addBold;
+    }
+  }
+
+  int typeFromIcon(IconData data) {
+    if (data == Pelaicons.textBold) {
+      return 0;
+    } else if (data == Pelaicons.imageBold) {
+      return 1;
+    } else {
+      return 2;
+    }
+  }
+
+  Widget nodeTypeWidget(
+      TextEditingController controller, FocusNode focus, int type,
+      {bool selected = false, int? mainNodeIndex, int? secondaryNodeIndex}) {
+    IconData? selectedValue = iconFromValue(type);
+
+    Widget nodeTypeSelect = Container(
+        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+        child: TextField(
+          focusNode: focus,
+          controller: controller,
+          cursorColor: Colors.black,
+          maxLines: null,
+          expands: false,
+          keyboardType: TextInputType.multiline,
+          decoration: const InputDecoration(
+            hintText: "Node Term",
+            hintStyle: TextStyle(
+                color: Color.fromARGB(255, 193, 193, 193),
+                fontWeight: FontWeight.bold),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+          ),
+        ));
+    if (type == 1) {
+      nodeTypeSelect = Container(
+          child: ((secondaryNodeIndex == null)
+                  ? connectionList[mainNodeIndex ?? 0]
+                          .mainNode
+                          .externalFileLoaded ==
+                      null
+                  : connectionList[mainNodeIndex ?? 0]
+                          .secondaryNodeList[secondaryNodeIndex]
+                          .externalFileLoaded ==
+                      null)
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                        onPressed: () async {
+                          final picker = ImagePicker();
+                          XFile? image = await picker.pickImage(
+                              source: ImageSource.gallery);
+
+                          if (image != null) {
+                            setState(() {
+                              if (secondaryNodeIndex == null) {
+                                connectionList[mainNodeIndex ?? 0]
+                                    .mainNode
+                                    .externalFileLoaded = image.path;
+                              } else {
+                                connectionList[mainNodeIndex ?? 0]
+                                    .secondaryNodeList[secondaryNodeIndex]
+                                    .externalFileLoaded = image.path;
+                              }
+                            });
+                          }
+                        },
+                        icon: Icon(Icons.add_rounded))
+                  ],
+                )
+              : Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    Container(
+                        child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(File((secondaryNodeIndex == null)
+                                ? connectionList[mainNodeIndex ?? 0]
+                                    .mainNode
+                                    .externalFileLoaded!
+                                : connectionList[mainNodeIndex ?? 0]
+                                    .secondaryNodeList[secondaryNodeIndex]
+                                    .externalFileLoaded!)))),
+                    Positioned(
+                        child: Container(
+                            margin: EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                            padding: EdgeInsets.symmetric(horizontal: 5),
+                            decoration: BoxDecoration(
+                                color: const Color.fromARGB(197, 255, 255, 255),
+                                borderRadius: BorderRadius.circular(10)),
+                            child: TextField(
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                              focusNode: focus,
+                              controller: controller,
+                              cursorColor: Colors.black,
+                              keyboardType: TextInputType.multiline,
+                              decoration: const InputDecoration(
+                                hintText: "Image label",
+                                hintStyle: TextStyle(
+                                    color: Color.fromARGB(255, 91, 91, 91),
+                                    fontWeight: FontWeight.bold),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                              ),
+                            )))
+                  ],
+                ));
+    }
     return Container(
         decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(20)),
+            color: Colors.white, borderRadius: BorderRadius.circular(16)),
         width: 240,
         constraints: BoxConstraints(minHeight: 100),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Container(padding: EdgeInsets.all(18), child: nodeTypeSelect),
-            Positioned(top: 5, right: 5, child: Icon(Pelaicons.textBold))
+            Container(
+                child: Column(
+              children: [nodeTypeSelect],
+            )),
+            type == 1
+                ? ((secondaryNodeIndex == null)
+                        ? connectionList[mainNodeIndex ?? 0]
+                                .mainNode
+                                .externalFileLoaded !=
+                            null
+                        : connectionList[mainNodeIndex ?? 0]
+                                .secondaryNodeList[secondaryNodeIndex]
+                                .externalFileLoaded !=
+                            null)
+                    ? Positioned(
+                        top: 3,
+                        left: 3,
+                        child: Container(
+                            decoration: BoxDecoration(
+                                color: Color.fromARGB(179, 255, 255, 255),
+                                borderRadius: BorderRadius.circular(20)),
+                            child: IconButton(
+                                iconSize: 20,
+                                padding: EdgeInsets.all(2),
+                                constraints: BoxConstraints(),
+                                hoverColor: Colors.transparent,
+                                onPressed: () {
+                                  setState(() {
+                                    ((secondaryNodeIndex == null)
+                                        ? connectionList[mainNodeIndex ?? 0]
+                                            .mainNode
+                                            .externalFileLoaded = null
+                                        : connectionList[mainNodeIndex ?? 0]
+                                            .secondaryNodeList[
+                                                secondaryNodeIndex]
+                                            .externalFileLoaded = null);
+                                  });
+                                },
+                                icon: Icon(Icons.clear_rounded))))
+                    : SizedBox.shrink()
+                : SizedBox.shrink(),
+            Positioned(
+                top: 3,
+                right: 3,
+                child: DropdownButtonHideUnderline(
+                    child: DropdownButton2<IconData>(
+                        value: selectedValue,
+                        onChanged: (IconData? value) {
+                          setState(() {
+                            selectedValue = value;
+                            if (mainNodeIndex != null) {
+                              if (secondaryNodeIndex == null) {
+                                connectionList[mainNodeIndex].mainNode.type =
+                                    typeFromIcon(value ?? Pelaicons.textBold);
+                              } else {
+                                connectionList[mainNodeIndex]
+                                        .secondaryNodeList[secondaryNodeIndex]
+                                        .type =
+                                    typeFromIcon(value ?? Pelaicons.textBold);
+                              }
+                            }
+                          });
+                        },
+                        iconStyleData: IconStyleData(
+                            icon: Icon(
+                          Icons.arrow_drop_down_rounded,
+                        )),
+                        buttonStyleData: ButtonStyleData(
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(5),
+                              color: Color.fromARGB(179, 255, 255, 255)),
+                          padding: EdgeInsets.all(0),
+                          height: 24,
+                          width: 50,
+                        ),
+                        dropdownStyleData: DropdownStyleData(
+                          width: 30,
+                          padding: EdgeInsets.all(0),
+                          decoration: BoxDecoration(
+                            boxShadow: [],
+                            border: Border.all(),
+                            borderRadius: BorderRadius.circular(5),
+                            color: const Color.fromARGB(255, 255, 255, 255),
+                          ),
+                          offset: const Offset(-3, -8),
+                          scrollbarTheme: ScrollbarThemeData(
+                            radius: const Radius.circular(2),
+                            thickness: WidgetStateProperty.all(6),
+                            thumbVisibility: WidgetStateProperty.all(true),
+                          ),
+                        ),
+                        menuItemStyleData: const MenuItemStyleData(
+                          height: 34,
+                          padding: EdgeInsets.all(3),
+                        ),
+                        items: nodeTypeList
+                            .map((IconData item) => DropdownMenuItem<IconData>(
+                                value: item, child: Icon(item)))
+                            .toList())))
           ],
         ));
   }
@@ -925,7 +1391,13 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           currentSecondaryProtoNode,
           ProtoSecondaryNode(
               controller: TextEditingController(),
-              modifierController: TextEditingController(text: modifier)));
+              modifierController: TextEditingController(text: modifier),
+              focus: FocusNode()));
+
+      connectionList[currentMainProtoNode]
+          .secondaryNodeList[currentSecondaryProtoNode]
+          .focus
+          .requestFocus();
     });
   }
 
@@ -963,7 +1435,11 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           });
         },
         child: Container(
-            margin: EdgeInsets.only(bottom: 20),
+            margin: EdgeInsets.only(
+                bottom:
+                    connectionList[parent].secondaryNodeList.length - 1 != index
+                        ? 20
+                        : 0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -988,7 +1464,13 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                     )),
                 Container(
                     width: 300,
-                    child: nodeTypeWidget(p.controller, selected: selected)),
+                    child: nodeTypeWidget(
+                        p.controller,
+                        selected: selected,
+                        p.focus,
+                        p.type,
+                        mainNodeIndex: parent,
+                        secondaryNodeIndex: index)),
               ],
             )));
   }
@@ -1000,11 +1482,8 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           Future.microtask(() => outerClicked = true);
           setState(() {
             if (!innerClicked) {
-              if (currentMainProtoNode != index) {
-                currentMainProtoNode = index;
-              } else {
-                currentMainProtoNode = -1;
-              }
+              currentMainProtoNode = index;
+
               currentSecondaryProtoNode = -1;
               print("test");
               outerClicked = false;
@@ -1012,8 +1491,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           });
         },
         child: Container(
-            margin: EdgeInsets.only(bottom: 20),
-            padding: EdgeInsets.only(top: 20, left: 20, right: 20),
+            padding: EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 20),
             decoration: BoxDecoration(
                 color: index == currentMainProtoNode
                     ? primary1
@@ -1026,7 +1504,9 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                   children: [
                     Container(
                         width: 300,
-                        child: nodeTypeWidget(c.mainNode.controller))
+                        child: nodeTypeWidget(c.mainNode.controller,
+                            c.mainNode.focus, c.mainNode.type,
+                            mainNodeIndex: index))
                   ],
                 ),
                 Column(
@@ -1042,6 +1522,23 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                 )
               ],
             )));
+  }
+
+  void showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget addNodeSceneController() {
@@ -1093,13 +1590,43 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                     borderRadius:
                                         BorderRadiusGeometry.circular(20))))),
                     SizedBox(width: 250),
-                    IconButton(
-                        onPressed: () {},
-                        icon: Icon(Icons.add),
-                        color: Colors.white,
-                        constraints: BoxConstraints(
-                          minWidth: 80,
-                        ),
+                    TextButton(
+                        onPressed: () {
+                          for (Connection c in connectionList) {
+                            if ((c.mainNode.externalFileLoaded != null &&
+                                    c.mainNode.controller.text.isEmpty) ||
+                                (c.secondaryNodeList.any((c) =>
+                                    (c.externalFileLoaded != null &&
+                                        c.controller.text.isEmpty)))) {
+                              showErrorDialog(
+                                  context, 'Images must have a label');
+                              return;
+                            }
+                            if (c.mainNode.controller.text.isEmpty &&
+                                c.secondaryNodeList.any((c) =>
+                                    c.controller.text.trim().isNotEmpty)) {
+                              showErrorDialog(context,
+                                  'Primary nodes cannot be empty when making secondary connections');
+                              return;
+                            }
+                          }
+
+                          for (Connection c in connectionList) {
+                            createNode(c);
+                          }
+                          Future.delayed(const Duration(milliseconds: 600), () {
+                            // Your function here
+                            resetConnections();
+                          });
+                        },
+                        child: Container(
+                            padding: EdgeInsets.all(10),
+                            child: Text(
+                              "Create",
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
+                            )),
                         style: ButtonStyle(
                             backgroundColor: WidgetStatePropertyAll(primary3),
                             shape: WidgetStatePropertyAll(
@@ -1181,6 +1708,21 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                         _onPlusPressed();
                       },
                       icon: Icon(Icons.add_rounded))),
+              SizedBox(height: 10),
+              Container(
+                  height: 80,
+                  width: 80,
+                  child: IconButton.filled(
+                      color: Colors.white,
+                      style: ButtonStyle(
+                          backgroundColor: WidgetStatePropertyAll(primary1),
+                          shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadiusGeometry.circular(20)))),
+                      onPressed: () {
+                        switchScene(true);
+                      },
+                      icon: Icon(Icons.list))),
               SizedBox(height: 10),
               Container(
                   height: 80,
@@ -1476,7 +2018,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                     fit: BoxFit.scaleDown,
                                                     child: Text(
                                                         style: const TextStyle(
-                                                            fontSize: 20,
+                                                            fontSize: 10,
                                                             fontWeight:
                                                                 FontWeight
                                                                     .bold),
@@ -1579,6 +2121,392 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                 )
               ]))
         ]);
+  }
+
+  List<Node> getTopLevelNodes() {
+    List<Node> topLevel = [];
+    for (int k in generalToDetail.keys) {
+      if (detailToGeneral[k] == null) {
+        topLevel.add(nodeMap[k]!);
+      }
+    }
+    print(topLevel);
+    return topLevel;
+  }
+
+  Widget directoryEntry(Node n, int level) {
+    print(generalToDetail);
+    Widget entry = Container(
+        padding: EdgeInsets.all(20),
+        width: 200,
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        child: Column(
+          children: [
+            n.type == 1 ? Image.file(File(n.source)) : SizedBox.shrink(),
+            Text(n.text),
+            // ListView.builder(
+            //     padding: const EdgeInsets.all(8),
+            //     itemCount: generalToDetail[n.id]!.length,
+            //     itemBuilder: (BuildContext context, int index) {
+            //       return directoryEntry(
+            //           nodeMap[generalToDetail[n.id]![index]]!, 0);
+            //     })
+          ],
+        ));
+    return Container(child: entry);
+  }
+
+  Widget directoryView() {
+    List<Node> topLevelNodes = topLevelMap.values.toList();
+    return Container(
+        margin: EdgeInsets.only(top: 70),
+        padding: EdgeInsets.all(20),
+        child: ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: topLevelNodes.length,
+            itemBuilder: (BuildContext context, int index) {
+              return directoryEntry(topLevelNodes[index], 0);
+            }));
+  }
+
+  Widget expandedView() {
+    return Container(
+        padding: EdgeInsets.all(20),
+        alignment: Alignment.bottomCenter,
+        decoration: BoxDecoration(color: backgroundColor),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          nodeMap[focusedNode.id] == null
+              ? MouseRegion(
+                  onEnter: (details) => setState(() => mainNodeHover = true),
+                  onExit: (details) => setState(() {
+                        mainNodeHover = false;
+                      }),
+                  child: Stack(alignment: Alignment.center, children: [
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 50),
+                      child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                                constraints: const BoxConstraints(
+                                    maxWidth: 500, minHeight: 200),
+                                alignment: Alignment.center,
+                                padding: EdgeInsets.symmetric(horizontal: 10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  border:
+                                      Border.all(width: 1, color: Colors.black),
+                                ),
+                                child: focusedNode.type == 1
+                                    ? ClipRRect(
+                                        borderRadius:
+                                            BorderRadius.circular(8.0),
+                                        child:
+                                            Image.file(File(focusedNode.text)))
+                                    : Text(
+                                        style: TextStyle(
+                                            fontSize: focusedNode.text.length >
+                                                    100
+                                                ? 18
+                                                : focusedNode.text.length > 20
+                                                    ? 22
+                                                    : 30),
+                                        focusedNode.text)),
+                          ]),
+                    )
+                  ]))
+              : Stack(alignment: Alignment.centerLeft, children: [
+                  SizedBox(
+                      width: double.infinity,
+                      child: AnimatedAlign(
+                          duration: Duration(milliseconds: 400),
+                          curve: Curves.easeInOut,
+                          alignment: Alignment.center,
+                          child: SizedBox(
+                              width: 1200,
+                              child: Row(children: [
+                                AnimatedSlide(
+                                    offset: showSecond
+                                        ? Offset(0, 0)
+                                        : showCenter
+                                            ? Offset(0.25, 0)
+                                            : Offset(0.5, 0),
+                                    duration: Duration(milliseconds: 600),
+                                    curve: Curves.easeInOut,
+                                    child: AnimatedAlign(
+                                      duration: Duration(milliseconds: 400),
+                                      curve: Curves.easeInOut,
+                                      alignment: Alignment.center,
+                                      child: SizedBox(
+                                          width: 800,
+                                          child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                AnimatedOpacity(
+                                                    opacity: switchMain
+                                                        ? _fadeAnimation1.value
+                                                        : 1,
+                                                    curve: Curves.easeInOut,
+                                                    duration: Duration(
+                                                        milliseconds: 200),
+                                                    child: AnimatedSlide(
+                                                        offset: Offset(0, 0),
+                                                        duration: Duration(
+                                                            milliseconds: 600),
+                                                        curve: Curves.easeInOut,
+                                                        child: Container(
+                                                            constraints:
+                                                                BoxConstraints(
+                                                              minHeight: 60,
+                                                              maxWidth: 400,
+                                                            ),
+                                                            padding:
+                                                                EdgeInsets.only(
+                                                              right: 20,
+                                                            ),
+                                                            child:
+                                                                GestureDetector(
+                                                              onTap: () async {
+                                                                print(
+                                                                    "testtttt");
+                                                                if (midTransition) {
+                                                                  return;
+                                                                }
+
+                                                                setState(() {
+                                                                  midTransition =
+                                                                      true;
+                                                                });
+
+                                                                if (!showCenter) {
+                                                                  // Showing center
+
+                                                                  setState(() {
+                                                                    showCenter =
+                                                                        true;
+                                                                    showCenter =
+                                                                        true;
+                                                                  });
+
+                                                                  // First animate left container
+                                                                  await Future.delayed(
+                                                                      Duration(
+                                                                          milliseconds:
+                                                                              400));
+
+                                                                  // Then animate center
+                                                                  _controller
+                                                                      .forward();
+
+                                                                  if (showSecond) {
+                                                                    _controller1
+                                                                        .forward();
+                                                                  }
+                                                                } else {
+                                                                  // Hiding center
+
+                                                                  if (showSecond) {
+                                                                    _controller1
+                                                                        .reverse();
+                                                                  }
+
+                                                                  _controller
+                                                                      .reverse();
+
+                                                                  await Future.delayed(
+                                                                      Duration(
+                                                                          milliseconds:
+                                                                              350));
+
+                                                                  setState(() {
+                                                                    showCenter =
+                                                                        false;
+                                                                    showSecond =
+                                                                        false;
+                                                                  });
+                                                                }
+                                                                setState(() {
+                                                                  midTransition =
+                                                                      false;
+                                                                });
+                                                              },
+                                                              child:
+
+                                                                  // Main node card
+
+                                                                  Container(
+                                                                      width:
+                                                                          400,
+                                                                      decoration:
+                                                                          BoxDecoration(
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(20),
+                                                                        border: Border.all(
+                                                                            width:
+                                                                                1,
+                                                                            color:
+                                                                                Colors.black),
+                                                                        color: Colors
+                                                                            .white,
+                                                                      ),
+                                                                      alignment:
+                                                                          Alignment
+                                                                              .center,
+                                                                      child: Container(
+                                                                          padding: EdgeInsets.all(
+                                                                              15),
+                                                                          child: focusedNode.type == 1
+                                                                              ? Image.file(File(focusedNode.text))
+                                                                              : Text(focusedNode.text, style: TextStyle(fontSize: focusedNode.text.length > 100 ? 15 : 25)))),
+                                                            ))
+                                                        // Top Gradient
+                                                        )),
+                                                Expanded(
+                                                    child: IgnorePointer(
+                                                        ignoring: !showCenter,
+                                                        child: ClipRect(
+                                                          child: Container(
+                                                            // decoration: BoxDecoration(border: Border.all(color: Colors.black, width: 1)),
+                                                            width:
+                                                                400, // Always reserve space
+                                                            child:
+                                                                AnimatedBuilder(
+                                                              animation:
+                                                                  _controller,
+                                                              builder: (context,
+                                                                  child) {
+                                                                return Opacity(
+                                                                  opacity:
+                                                                      _fadeAnimation
+                                                                          .value,
+                                                                  child:
+                                                                      FractionalTranslation(
+                                                                    translation:
+                                                                        Offset(
+                                                                            0,
+                                                                            _slideAnimation.value),
+                                                                    child:
+                                                                        child,
+                                                                  ),
+                                                                );
+                                                              },
+                                                              child: Container(
+                                                                constraints:
+                                                                    BoxConstraints(
+                                                                        maxWidth:
+                                                                            400),
+                                                                child:
+                                                                    ReorderableListView(
+                                                                  shrinkWrap:
+                                                                      true,
+                                                                  physics:
+                                                                      ClampingScrollPhysics(),
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .only(
+                                                                          right:
+                                                                              10),
+                                                                  proxyDecorator:
+                                                                      auxiliaryDisplayProxyDecoratorTier1,
+                                                                  onReorder: (int
+                                                                          oldIndex,
+                                                                      int newIndex) {
+                                                                    setState(
+                                                                        () {
+                                                                      if (oldIndex <
+                                                                          newIndex)
+                                                                        newIndex -=
+                                                                            1;
+                                                                      if (oldIndex !=
+                                                                          newIndex) {
+                                                                        reorderableListNodeSwap(
+                                                                            focusedNode.id,
+                                                                            oldIndex,
+                                                                            newIndex);
+                                                                      }
+                                                                    });
+                                                                  },
+                                                                  children: showCenter
+                                                                      ? getNodeConnectionsParsed(focusedNode
+                                                                              .id)
+                                                                          .map((e) => auxiliaryDisplay(
+                                                                              e,
+                                                                              1))
+                                                                          .toList()
+                                                                      : [],
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        )))
+                                              ])),
+                                    )),
+                                ClipRect(
+                                  child: SizedBox(
+                                    width: 400, // Always reserve space
+                                    child: AnimatedBuilder(
+                                      animation: _controller1,
+                                      builder: (context, child) {
+                                        return Opacity(
+                                          opacity: _fadeAnimation1.value,
+                                          child: FractionalTranslation(
+                                            translation: Offset(
+                                                0, _slideAnimation1.value),
+                                            child: child,
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        constraints:
+                                            BoxConstraints(maxWidth: 400),
+                                        child: ReorderableListView(
+                                          shrinkWrap: true,
+                                          physics: ClampingScrollPhysics(),
+                                          padding:
+                                              const EdgeInsets.only(right: 10),
+                                          proxyDecorator:
+                                              auxiliaryDisplayProxyDecoratorTier2,
+                                          onReorder:
+                                              (int oldIndex, int newIndex) {
+                                            setState(() {
+                                              if (secondaryNode == null) return;
+                                              if (oldIndex < newIndex)
+                                                newIndex -= 1;
+                                              if (oldIndex != newIndex) {
+                                                reorderableListNodeSwap(
+                                                    secondaryNode!.id,
+                                                    oldIndex,
+                                                    newIndex);
+                                              }
+                                            });
+                                          },
+                                          children: secondaryNode == null
+                                              ? []
+                                              : getNodeConnectionsParsed(
+                                                      secondaryNode!.id)
+                                                  .map((e) =>
+                                                      auxiliaryDisplay(e, 2))
+                                                  .toList(),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              ])))),
+                ])
+        ]));
+  }
+
+  void addConnectionEnter() {
+    if (currentSecondaryProtoNode >= 0) {
+      addConnectionWidget();
+    } else if (currentMainProtoNode >= 0) {
+      addConnection(index: currentMainProtoNode);
+    } else {
+      addConnection();
+    }
   }
 
   @override
@@ -1690,425 +2618,243 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                             child: Center(
                                 child: LoadingAnimationWidget.halfTriangleDot(
                                     color: primary2, size: 50))))
-                    : Scaffold(
-                        body: LayoutBuilder(builder: (context, constraints) {
-                        return Stack(alignment: Alignment.center, children: [
-                          SingleChildScrollView(
-                              controller: mainScrollController,
-                              scrollDirection: Axis.vertical,
-                              child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minHeight: constraints
-                                        .maxHeight, // 👈 Fill full height
-                                  ),
-                                  child: AnimatedBuilder(
-                                      animation: _sceneColorController,
-                                      builder: (_, __) => Container(
-                                          padding: EdgeInsets.all(20),
-                                          decoration: const BoxDecoration(
-                                            color: Color.fromARGB(255, 218, 218,
-                                                234), // Background color
-                                          ),
-                                          child: Container(
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                border: Border.all(
-                                                    color: _borderColor.value ??
-                                                        Colors.black),
-                                              ),
-                                              child: ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                  child: Stack(
-                                                      alignment:
-                                                          Alignment.center,
-                                                      children: [
-                                                        editingMode
-                                                            ?
-
+                    : Shortcuts(
+                        shortcuts: <LogicalKeySet, Intent>{
+                            LogicalKeySet(LogicalKeyboardKey.enter,
+                                LogicalKeyboardKey.shift): AddIntent(),
+                          },
+                        child: Actions(
+                            actions: <Type, Action<Intent>>{
+                              AddIntent: CallbackAction<AddIntent>(
+                                onInvoke: (AddIntent intent) => setState(() {
+                                  addConnectionEnter();
+                                }),
+                              ),
+                            },
+                            child: Scaffold(
+                                backgroundColor: backgroundColor,
+                                body: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                  return Stack(children: [
+                                    SlideTransition(
+                                        position: _primarySceneOffset,
+                                        child: (Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              SingleChildScrollView(
+                                                  controller:
+                                                      mainScrollController,
+                                                  scrollDirection:
+                                                      Axis.vertical,
+                                                  child: ConstrainedBox(
+                                                      constraints:
+                                                          BoxConstraints(
+                                                        minHeight: constraints
+                                                            .maxHeight, // 👈 Fill full height
+                                                      ),
+                                                      child: AnimatedBuilder(
+                                                          animation:
+                                                              _sceneColorController,
+                                                          builder: (_, __) => Container(
+                                                              padding: EdgeInsets.all(20),
+                                                              decoration: const BoxDecoration(
+                                                                color: Color
+                                                                    .fromARGB(
+                                                                        255,
+                                                                        218,
+                                                                        218,
+                                                                        234), // Background color
+                                                              ),
+                                                              child: Container(
+                                                                  decoration: BoxDecoration(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                            10),
+                                                                    border: Border.all(
+                                                                        color: _borderColor.value ??
+                                                                            Colors.black),
+                                                                  ),
+                                                                  child: ClipRRect(
+                                                                      borderRadius: BorderRadius.circular(10),
+                                                                      child: Stack(alignment: Alignment.center, children: [
 // -------------------------------------------------------------------------------------------------------------------------------------
 // Node Submission Dashboard
 // -------------------------------------------------------------------------------------------------------------------------------------
 
-                                                            Container(
-                                                                padding:
-                                                                    EdgeInsets
-                                                                        .all(
-                                                                            20),
-                                                                decoration:
-                                                                    BoxDecoration(
-                                                                  color: const Color
-                                                                      .fromARGB(
-                                                                      255,
-                                                                      218,
-                                                                      218,
-                                                                      234),
-                                                                ),
-                                                                child:
-                                                                    sceneController(
-                                                                        context),
-                                                              )
-                                                            :
+                                                                        Container(
+                                                                          padding:
+                                                                              EdgeInsets.all(20),
+                                                                          decoration:
+                                                                              BoxDecoration(
+                                                                            color: const Color.fromARGB(
+                                                                                255,
+                                                                                218,
+                                                                                218,
+                                                                                234),
+                                                                          ),
+                                                                          child:
+                                                                              sceneController(context),
+                                                                        )
+
 // -------------------------------------------------------------------------------------------------------------------------------------
 // Node Flashcard Mode
 // -------------------------------------------------------------------------------------------------------------------------------------
-
-                                                            Expanded(
-                                                                //if main node does not have any auxiliary nodes
-                                                                child:
-                                                                    Container(
-                                                                        padding: EdgeInsets.all(
-                                                                            20),
-                                                                        alignment: Alignment
-                                                                            .bottomCenter,
-                                                                        decoration: BoxDecoration(
-                                                                            color:
-                                                                                backgroundColor),
-                                                                        child: Column(
-                                                                            mainAxisAlignment:
-                                                                                MainAxisAlignment.center,
-                                                                            children: [
-                                                                              nodeMap[focusedNode.id] == null
-                                                                                  ? MouseRegion(
-                                                                                      onEnter: (details) => setState(() => mainNodeHover = true),
-                                                                                      onExit: (details) => setState(() {
-                                                                                            mainNodeHover = false;
-                                                                                          }),
-                                                                                      child: Stack(alignment: Alignment.center, children: [
-                                                                                        Container(
-                                                                                          margin: const EdgeInsets.only(bottom: 50),
-                                                                                          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                                                                            Container(
-                                                                                                constraints: const BoxConstraints(maxWidth: 500, minHeight: 200),
-                                                                                                alignment: Alignment.center,
-                                                                                                padding: EdgeInsets.symmetric(horizontal: 10),
-                                                                                                decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(width: 1, color: Colors.black), color: Colors.white),
-                                                                                                child: focusedNode.type == 1
-                                                                                                    ? ClipRRect(borderRadius: BorderRadius.circular(8.0), child: Image.file(File(focusedNode.text)))
-                                                                                                    : Text(
-                                                                                                        style: TextStyle(
-                                                                                                            fontSize: focusedNode.text.length > 100
-                                                                                                                ? 18
-                                                                                                                : focusedNode.text.length > 20
-                                                                                                                    ? 22
-                                                                                                                    : 30),
-                                                                                                        focusedNode.text)),
-                                                                                            Spacer(),
-                                                                                            Listener(
-                                                                                                onPointerSignal: (event) {
-                                                                                                  if (event is PointerScrollEvent) {
-                                                                                                    setState(() {
-                                                                                                      angle += event.scrollDelta.dy * -0.01; // scroll up = rotate clockwise
-                                                                                                    });
-                                                                                                  }
-                                                                                                },
-                                                                                                child: Container(
-                                                                                                    decoration: BoxDecoration(border: Border.all(width: 1, color: Colors.black)),
-                                                                                                    width: 500,
-                                                                                                    height: 500,
-                                                                                                    child: LayoutBuilder(
-                                                                                                      builder: (context, constraints) {
-                                                                                                        final Size size = constraints.biggest;
-                                                                                                        final Offset center = size.center(Offset.zero);
-
-                                                                                                        return ClipRect(
-                                                                                                            child: Align(
-                                                                                                                alignment: Alignment.centerLeft,
-                                                                                                                widthFactor: 0.5, // Show only the left half
-                                                                                                                child: GestureDetector(
-                                                                                                                  onPanStart: (details) => _lastPosition = details.localPosition,
-                                                                                                                  onPanUpdate: (details) => _onPanUpdate(details, center),
-                                                                                                                  child: SizedBox(
-                                                                                                                    width: size.width,
-                                                                                                                    height: size.height,
-                                                                                                                    child: Stack(
-                                                                                                                      children: [
-                                                                                                                        Positioned.fill(
-                                                                                                                          child: Container(
-                                                                                                                            color: Colors.transparent, // ensures the area is hit-testable
-                                                                                                                          ),
-                                                                                                                        ),
-                                                                                                                        // Items around circle
-                                                                                                                        for (int i = 0; i < items.length; i++)
-                                                                                                                          Positioned(
-                                                                                                                              left: center.dx + radius * cos(angle + i * 2 * pi / items.length) - 90,
-                                                                                                                              top: center.dy + radius * sin(angle + i * 2 * pi / items.length) - 90,
-                                                                                                                              child: Opacity(
-                                                                                                                                opacity: (-radius * cos(angle + i * 2 * pi / items.length) / center.dx).clamp(0.0, 1.0),
-                                                                                                                                child: Container(
-                                                                                                                                  width: 300,
-                                                                                                                                  height: 180,
-                                                                                                                                  alignment: Alignment.center,
-                                                                                                                                  decoration: BoxDecoration(
-                                                                                                                                    borderRadius: BorderRadius.circular(20),
-                                                                                                                                    color: Colors.blue,
-                                                                                                                                  ),
-                                                                                                                                  child: Text(items[i], style: TextStyle(color: Colors.white)),
-                                                                                                                                ),
-                                                                                                                              )),
-                                                                                                                        // Center dot
-                                                                                                                        Positioned(
-                                                                                                                          left: center.dx - 5,
-                                                                                                                          top: center.dy - 5,
-                                                                                                                          child: Container(
-                                                                                                                            width: 200,
-                                                                                                                            height: 10,
-                                                                                                                            decoration: BoxDecoration(
-                                                                                                                              color: Colors.red,
-                                                                                                                            ),
-                                                                                                                          ),
-                                                                                                                        )
-                                                                                                                      ],
-                                                                                                                    ),
-                                                                                                                  ),
-                                                                                                                )));
-                                                                                                      },
-                                                                                                    )))
-                                                                                          ]),
-                                                                                        )
-                                                                                      ]))
-                                                                                  : Stack(alignment: Alignment.centerLeft, children: [
-                                                                                      SizedBox(
-                                                                                          width: double.infinity,
-                                                                                          child: AnimatedAlign(
-                                                                                              duration: Duration(milliseconds: 400),
-                                                                                              curve: Curves.easeInOut,
-                                                                                              alignment: Alignment.center,
-                                                                                              child: SizedBox(
-                                                                                                  width: 1200,
-                                                                                                  child: Row(children: [
-                                                                                                    AnimatedSlide(
-                                                                                                        offset: showSecond
-                                                                                                            ? Offset(0, 0)
-                                                                                                            : showCenter
-                                                                                                                ? Offset(0.25, 0)
-                                                                                                                : Offset(0.5, 0),
-                                                                                                        duration: Duration(milliseconds: 600),
-                                                                                                        curve: Curves.easeInOut,
-                                                                                                        child: AnimatedAlign(
-                                                                                                          duration: Duration(milliseconds: 400),
-                                                                                                          curve: Curves.easeInOut,
-                                                                                                          alignment: Alignment.center,
-                                                                                                          child: SizedBox(
-                                                                                                              width: totalWidth,
-                                                                                                              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                                                                                                AnimatedOpacity(
-                                                                                                                    opacity: switchMain ? _fadeAnimation1.value : 1,
-                                                                                                                    curve: Curves.easeInOut,
-                                                                                                                    duration: Duration(milliseconds: 200),
-                                                                                                                    child: AnimatedSlide(
-                                                                                                                        offset: Offset(0, 0),
-                                                                                                                        duration: Duration(milliseconds: 600),
-                                                                                                                        curve: Curves.easeInOut,
-                                                                                                                        child: Container(
-                                                                                                                            constraints: BoxConstraints(
-                                                                                                                              minHeight: 60,
-                                                                                                                              maxWidth: 400,
-                                                                                                                            ),
-                                                                                                                            padding: EdgeInsets.only(
-                                                                                                                              right: 20,
-                                                                                                                            ),
-                                                                                                                            child: GestureDetector(
-                                                                                                                              onTap: () async {
-                                                                                                                                print("testtttt");
-                                                                                                                                if (midTransition) {
-                                                                                                                                  return;
-                                                                                                                                }
-
-                                                                                                                                setState(() {
-                                                                                                                                  midTransition = true;
-                                                                                                                                });
-
-                                                                                                                                if (!showCenter) {
-                                                                                                                                  // Showing center
-
-                                                                                                                                  setState(() {
-                                                                                                                                    showCenter = true;
-                                                                                                                                    showCenter = true;
-                                                                                                                                  });
-
-                                                                                                                                  // First animate left container
-                                                                                                                                  await Future.delayed(Duration(milliseconds: 400));
-
-                                                                                                                                  // Then animate center
-                                                                                                                                  _controller.forward();
-
-                                                                                                                                  if (showSecond) {
-                                                                                                                                    _controller1.forward();
-                                                                                                                                  }
-                                                                                                                                } else {
-                                                                                                                                  // Hiding center
-
-                                                                                                                                  if (showSecond) {
-                                                                                                                                    _controller1.reverse();
-                                                                                                                                  }
-
-                                                                                                                                  _controller.reverse();
-
-                                                                                                                                  await Future.delayed(Duration(milliseconds: 350));
-
-                                                                                                                                  setState(() {
-                                                                                                                                    showCenter = false;
-                                                                                                                                    showSecond = false;
-                                                                                                                                  });
-                                                                                                                                }
-                                                                                                                                setState(() {
-                                                                                                                                  midTransition = false;
-                                                                                                                                });
-                                                                                                                              },
-                                                                                                                              child:
-
-                                                                                                                                  // Main node card
-
-                                                                                                                                  Container(
-                                                                                                                                      width: 400,
-                                                                                                                                      decoration: BoxDecoration(
-                                                                                                                                        borderRadius: BorderRadius.circular(20),
-                                                                                                                                        border: Border.all(width: 1, color: Colors.black),
-                                                                                                                                        color: Colors.white,
-                                                                                                                                      ),
-                                                                                                                                      alignment: Alignment.center,
-                                                                                                                                      child: Container(padding: EdgeInsets.all(15), child: focusedNode.type == 1 ? Image.file(File(focusedNode.text)) : Text(focusedNode.text, style: TextStyle(fontSize: focusedNode.text.length > 100 ? 15 : 25)))),
-                                                                                                                            ))
-                                                                                                                        // Top Gradient
-                                                                                                                        )),
-                                                                                                                Expanded(
-                                                                                                                    child: IgnorePointer(
-                                                                                                                        ignoring: !showCenter,
-                                                                                                                        child: ClipRect(
-                                                                                                                          child: Container(
-                                                                                                                            // decoration: BoxDecoration(border: Border.all(color: Colors.black, width: 1)),
-                                                                                                                            width: 400, // Always reserve space
-                                                                                                                            child: AnimatedBuilder(
-                                                                                                                              animation: _controller,
-                                                                                                                              builder: (context, child) {
-                                                                                                                                return Opacity(
-                                                                                                                                  opacity: _fadeAnimation.value,
-                                                                                                                                  child: FractionalTranslation(
-                                                                                                                                    translation: Offset(0, _slideAnimation.value),
-                                                                                                                                    child: child,
-                                                                                                                                  ),
-                                                                                                                                );
-                                                                                                                              },
-                                                                                                                              child: Container(
-                                                                                                                                constraints: BoxConstraints(maxWidth: 400),
-                                                                                                                                child: ReorderableListView(
-                                                                                                                                  shrinkWrap: true,
-                                                                                                                                  physics: ClampingScrollPhysics(),
-                                                                                                                                  padding: const EdgeInsets.only(right: 10),
-                                                                                                                                  proxyDecorator: auxiliaryDisplayProxyDecoratorTier1,
-                                                                                                                                  onReorder: (int oldIndex, int newIndex) {
-                                                                                                                                    setState(() {
-                                                                                                                                      if (oldIndex < newIndex) newIndex -= 1;
-                                                                                                                                      if (oldIndex != newIndex) {
-                                                                                                                                        reorderableListNodeSwap(focusedNode.id, oldIndex, newIndex);
-                                                                                                                                      }
-                                                                                                                                    });
-                                                                                                                                  },
-                                                                                                                                  children: showCenter ? getNodeConnectionsParsed(focusedNode.id).map((e) => auxiliaryDisplay(e, 1)).toList() : [],
-                                                                                                                                ),
-                                                                                                                              ),
-                                                                                                                            ),
-                                                                                                                          ),
-                                                                                                                        )))
-                                                                                                              ])),
-                                                                                                        )),
-                                                                                                    ClipRect(
-                                                                                                      child: SizedBox(
-                                                                                                        width: 400, // Always reserve space
-                                                                                                        child: AnimatedBuilder(
-                                                                                                          animation: _controller1,
-                                                                                                          builder: (context, child) {
-                                                                                                            return Opacity(
-                                                                                                              opacity: _fadeAnimation1.value,
-                                                                                                              child: FractionalTranslation(
-                                                                                                                translation: Offset(0, _slideAnimation1.value),
-                                                                                                                child: child,
-                                                                                                              ),
-                                                                                                            );
-                                                                                                          },
-                                                                                                          child: Container(
-                                                                                                            constraints: BoxConstraints(maxWidth: 400),
-                                                                                                            child: ReorderableListView(
-                                                                                                              shrinkWrap: true,
-                                                                                                              physics: ClampingScrollPhysics(),
-                                                                                                              padding: const EdgeInsets.only(right: 10),
-                                                                                                              proxyDecorator: auxiliaryDisplayProxyDecoratorTier2,
-                                                                                                              onReorder: (int oldIndex, int newIndex) {
-                                                                                                                setState(() {
-                                                                                                                  if (secondaryNode == null) return;
-                                                                                                                  if (oldIndex < newIndex) newIndex -= 1;
-                                                                                                                  if (oldIndex != newIndex) {
-                                                                                                                    reorderableListNodeSwap(secondaryNode!.id, oldIndex, newIndex);
-                                                                                                                  }
-                                                                                                                });
-                                                                                                              },
-                                                                                                              children: secondaryNode == null ? [] : getNodeConnectionsParsed(secondaryNode!.id).map((e) => auxiliaryDisplay(e, 2)).toList(),
-                                                                                                            ),
-                                                                                                          ),
-                                                                                                        ),
-                                                                                                      ),
-                                                                                                    )
-                                                                                                  ])))),
-                                                                                    ])
-                                                                            ]))),
-                                                      ]))))))),
-                          Positioned(
-                              top: 30,
-                              child: SlideTransition(
-                                position: addNodeSceneControllerOffset,
-                                child: addNodeSceneController(),
-                              )),
-                          Positioned(
-                              top: 20,
-                              left: 20,
-                              child: Container(
-                                  // decoration: BoxDecoration(
-                                  //   borderRadius: BorderRadius.circular(10),
-                                  //   border:
-                                  //       Border.all(width: 1, color: Colors.black),
-                                  // ),
-                                  padding: const EdgeInsets.all(10),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.max,
-                                    children: [
-                                      Container(
-                                          height: 40,
-                                          width: 40,
-                                          decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(20)),
-                                          child: IconButton(
-                                            padding: EdgeInsets.zero,
-                                            style: const ButtonStyle(
-                                                shape: WidgetStatePropertyAll(
-                                                    RoundedRectangleBorder())),
-                                            icon: Icon(
-                                                size: 24,
-                                                scene == 1
-                                                    ? Icons.arrow_upward_rounded
-                                                    : Icons.arrow_left_rounded),
-                                            onPressed: () {
-                                              if (scene == 0) {
+                                                                      ]))))))),
+                                              Positioned(
+                                                  top: 30,
+                                                  child: SlideTransition(
+                                                    position:
+                                                        addNodeSceneControllerOffset,
+                                                    child:
+                                                        addNodeSceneController(),
+                                                  )),
+                                              Positioned(
+                                                  top: 20,
+                                                  left: 70,
+                                                  child: Container(
+                                                      // decoration: BoxDecoration(
+                                                      //   borderRadius: BorderRadius.circular(10),
+                                                      //   border:
+                                                      //       Border.all(width: 1, color: Colors.black),
+                                                      // ),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              10),
+                                                      child: Column(
+                                                        mainAxisSize:
+                                                            MainAxisSize.max,
+                                                        children: [
+                                                          Container(
+                                                              height: 40,
+                                                              width: 40,
+                                                              decoration: BoxDecoration(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  borderRadius:
+                                                                      BorderRadius
+                                                                          .circular(
+                                                                              20)),
+                                                              child: IconButton(
+                                                                padding:
+                                                                    EdgeInsets
+                                                                        .zero,
+                                                                style: const ButtonStyle(
+                                                                    shape: WidgetStatePropertyAll(
+                                                                        RoundedRectangleBorder())),
+                                                                icon: Icon(
+                                                                    size: 24,
+                                                                    scene == 1
+                                                                        ? Icons
+                                                                            .arrow_upward_rounded
+                                                                        : Icons
+                                                                            .arrow_downward_rounded),
+                                                                onPressed: () {
+                                                                  if (scene ==
+                                                                      0) {
+                                                                    _onPlusPressed();
+                                                                  } else if (scene ==
+                                                                      1) {
+                                                                    mainScrollController
+                                                                        .animateTo(
+                                                                      0, // Scroll to top (offset 0)
+                                                                      duration: Duration(
+                                                                          milliseconds:
+                                                                              400), // Adjust speed here
+                                                                      curve: Curves
+                                                                          .easeOut, // Smooth animation
+                                                                    );
+                                                                    _onBackPressed();
+                                                                  }
+                                                                },
+                                                              )),
+                                                        ],
+                                                      ))),
+                                            ]))),
+                                    SlideTransition(
+                                      position: _secondarySceneOffset,
+                                      child: Stack(
+                                        children: [
+                                          SlideTransition(
+                                              position: directorySceneOffset,
+                                              child: directoryView()),
+                                          SlideTransition(
+                                              position: expandedViewOffset,
+                                              child: expandedView()),
+                                          Positioned(
+                                              top: 30,
+                                              left: 130,
+                                              child: Container(
+                                                  height: 40,
+                                                  width: 40,
+                                                  decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              20)),
+                                                  child: IconButton(
+                                                    padding: EdgeInsets.zero,
+                                                    style: const ButtonStyle(
+                                                        shape: WidgetStatePropertyAll(
+                                                            RoundedRectangleBorder())),
+                                                    icon: Icon(Pelaicons
+                                                        .downArrow1Bold),
+                                                    onPressed: () {
+                                                      if (scene == 3) {
+                                                        switchSecondaryScene(
+                                                            true);
+                                                      } else {
+                                                        switchSecondaryScene(
+                                                            false);
+                                                      }
+                                                    },
+                                                  )))
+                                        ],
+                                      ),
+                                    ),
+                                    Positioned(
+                                        top: 30,
+                                        left: 30,
+                                        child: Container(
+                                            height: 40,
+                                            width: 40,
+                                            decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(20)),
+                                            child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              style: const ButtonStyle(
+                                                  shape: WidgetStatePropertyAll(
+                                                      RoundedRectangleBorder())),
+                                              icon: Icon(Pelaicons.homeBold),
+                                              onPressed: () {
                                                 Navigator.pop(context);
-                                              } else if (scene == 1) {
-                                                mainScrollController.animateTo(
-                                                  0, // Scroll to top (offset 0)
-                                                  duration: Duration(
-                                                      milliseconds:
-                                                          400), // Adjust speed here
-                                                  curve: Curves
-                                                      .easeOut, // Smooth animation
-                                                );
-                                                _onBackPressed();
-                                              }
-                                            },
-                                          )),
-                                    ],
-                                  ))),
-                        ]);
-                      })))));
+                                              },
+                                            ))),
+                                    scene > 2
+                                        ? Positioned(
+                                            top: 30,
+                                            left: 80,
+                                            child: Container(
+                                                height: 40,
+                                                width: 40,
+                                                decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            20)),
+                                                child: IconButton(
+                                                  padding: EdgeInsets.zero,
+                                                  style: const ButtonStyle(
+                                                      shape: WidgetStatePropertyAll(
+                                                          RoundedRectangleBorder())),
+                                                  icon: Icon(Icons.undo),
+                                                  onPressed: () {
+                                                    switchScene(false);
+                                                  },
+                                                )))
+                                        : SizedBox.shrink()
+                                  ]);
+                                })))))));
   }
 }
