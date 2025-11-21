@@ -1,0 +1,285 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
+import 'package:provider/provider.dart';
+
+import 'package:lynklynk/layout/document.dart';
+import 'view.dart';
+import 'highlighter.dart';
+
+Offset screenToCursor(RenderObject? obj, Offset pos, DocumentProvider doc) {
+  List<RenderParagraph> pars = <RenderParagraph>[];
+  findRenderParagraphs(obj, pars);
+
+  RenderParagraph? targetPar;
+  int line = -1;
+
+  for (final par in pars) {
+    Rect bounds = const Offset(0, 0) & par.size;
+    Offset offsetForCaret = par.localToGlobal(
+        par.getOffsetForCaret(const TextPosition(offset: 0), bounds));
+    Rect parBounds =
+        offsetForCaret & Size(par.size.width * 10, par.size.height);
+    if (parBounds.inflate(2).contains(pos)) {
+      targetPar = par;
+      break;
+    }
+  }
+  if (targetPar == null) return const Offset(-1, -1);
+
+  Rect bounds = const Offset(0, 0) & targetPar.size;
+  List<InlineSpan> children =
+      (targetPar.text as TextSpan).children ?? <InlineSpan>[];
+  Size fontCharSize = const Size(0, 0);
+  int textOffset = 0;
+  bool found = false;
+  for (var span in children) {
+    if (found) break;
+    if (span is! TextSpan) {
+      continue;
+    }
+
+    if (fontCharSize.width == 0) {
+      fontCharSize = getTextExtents(' ', span.style ?? const TextStyle());
+    }
+
+    String txt = (span).text ?? '';
+    for (int i = 0; i < txt.length; i++) {
+      Offset offsetForCaret = targetPar.localToGlobal(targetPar
+          .getOffsetForCaret(TextPosition(offset: textOffset), bounds));
+      Rect charBounds = offsetForCaret & fontCharSize;
+      if (charBounds.inflate(2).contains(Offset(pos.dx + 1, pos.dy + 1))) {
+        found = true;
+        break;
+      }
+      textOffset++;
+    }
+  }
+
+  if (children.isNotEmpty && children.last is CustomWidgetSpan) {
+    line = (children.last as CustomWidgetSpan).line;
+  }
+  print(line.toDouble());
+  print(textOffset.toDouble());
+  return Offset(textOffset.toDouble(), line.toDouble());
+}
+
+void findRenderParagraphs(RenderObject? obj, List<RenderParagraph> res) {
+  if (obj is RenderParagraph) {
+    res.add(obj);
+    return;
+  }
+  obj?.visitChildren((child) {
+    findRenderParagraphs(child, res);
+  });
+}
+
+class InputListener extends StatefulWidget {
+  final Widget child;
+
+  const InputListener({required this.child, super.key});
+  @override
+  State<InputListener> createState() => _InputListener();
+}
+
+class _InputListener extends State<InputListener> {
+  late FocusNode focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    focusNode.dispose();
+  }
+
+  void keyPressResponseUp(Document d, KeyEvent event) {
+    if (event.logicalKey == LogicalKeyboardKey.controlLeft ||
+        event.logicalKey == LogicalKeyboardKey.controlRight) {
+      d.setControlFalse();
+    } else if (event.logicalKey == LogicalKeyboardKey.shiftLeft ||
+        event.logicalKey == LogicalKeyboardKey.shiftRight) {
+      d.setShiftFalse();
+    }
+  }
+
+  void keyPressResponseDown(Document d, KeyEvent event) {
+    switch (event.logicalKey.keyLabel) {
+      case 'Home':
+        if (event.logicalKey == LogicalKeyboardKey.control) {
+          // d.moveCursorToStartOfDocument();
+        } else {
+          d.moveCursorToStartOfLine();
+        }
+        break;
+      case 'End':
+        if (event.logicalKey == LogicalKeyboardKey.control) {
+          d.moveCursorToEndOfDocument();
+        } else {
+          d.moveCursorToEndOfLine();
+        }
+        break;
+      case 'Tab':
+        if (d.bulletActive[d.cursor.line] && !d.getShiftActive()) {
+          d.updateBulletLevel(d.cursor.line, true);
+        } else if (d.bulletActive[d.cursor.line] && d.getShiftActive()) {
+          d.updateBulletLevel(d.cursor.line, false);
+        } else {
+          d.insertText('    ');
+        }
+        break;
+      case 'Enter':
+        d.deleteSelectedText();
+        d.insertNewLine();
+        break;
+      case 'Backspace':
+        if (d.cursor.hasSelection()) {
+          d.deleteSelectedText();
+          d.resetCurrent();
+        } else {
+          print(d.getCurrent());
+          d.deleteText();
+          d.deleteLastCharCurrent();
+          print("-------------");
+          print(d.getCurrent());
+          print("-------------");
+          if (d.getCurrent().length > 2) {
+            print("-------------");
+            print(d.suggestion.getSuggestion(d.getCurrent()));
+            d.updateSuggestionList(d.suggestion.getSuggestion(d.getCurrent()));
+          } else {
+            d.clearSuggestList();
+          }
+        }
+        break;
+      case 'Delete':
+        if (d.cursor.hasSelection()) {
+          d.deleteSelectedText();
+        } else {
+          d.deleteText();
+        }
+        break;
+      case 'Arrow Left':
+        d.moveCursorLeft(
+            keepAnchor: event.logicalKey == LogicalKeyboardKey.shift);
+        break;
+      case 'Arrow Right':
+        d.moveCursorRight(
+            keepAnchor: event.logicalKey == LogicalKeyboardKey.shift);
+        break;
+      case 'Arrow Up':
+        d.moveCursorUp(
+            keepAnchor: event.logicalKey == LogicalKeyboardKey.shift);
+        break;
+      case 'Arrow Down':
+        d.moveCursorDown(
+            keepAnchor: event.logicalKey == LogicalKeyboardKey.shift);
+        break;
+      case ' ':
+        d.insertText(" ");
+        d.resetCurrent();
+        break;
+
+      default:
+        {
+          if (event.logicalKey == LogicalKeyboardKey.controlLeft ||
+              event.logicalKey == LogicalKeyboardKey.controlRight) {
+            d.setControlTrue();
+          }
+          if (event.logicalKey == LogicalKeyboardKey.shiftLeft ||
+              event.logicalKey == LogicalKeyboardKey.shiftRight) {
+            d.setShiftTrue();
+          }
+          int k = event.logicalKey.keyId;
+          if ((k >= LogicalKeyboardKey.keyA.keyId &&
+                  k <= LogicalKeyboardKey.keyZ.keyId) ||
+              (k + 32 >= LogicalKeyboardKey.keyA.keyId &&
+                  k + 32 <= LogicalKeyboardKey.keyZ.keyId)) {
+            String ch =
+                String.fromCharCode(97 + k - LogicalKeyboardKey.keyA.keyId);
+
+            if (d.getControlActive()) {
+              d.command('ctrl+$ch');
+              break;
+            }
+
+            if (d.getShiftActive()) {
+              d.insertText(ch.toUpperCase());
+              d.updateCurrent(ch.toUpperCase());
+              if (d.getCurrent().length > 2) {
+                // print(d.suggestion.getSuggestion(d.getCurrent()));
+                d.updateSuggestionList(
+                    d.suggestion.getSuggestion(d.getCurrent()));
+              }
+            } else {
+              d.insertText(ch);
+              d.updateCurrent(ch);
+              if (d.getCurrent().length > 2) {
+                d.updateSuggestionList(
+                    d.suggestion.getSuggestion(d.getCurrent()));
+              }
+            }
+            break;
+          }
+        }
+        if (event.logicalKey.keyLabel.length == 1) {
+          d.insertText(event.logicalKey.keyLabel);
+          d.updateCurrent(event.logicalKey.keyLabel);
+          if (d.getCurrent().length > 2) {
+            d.updateSuggestionList(d.suggestion.getSuggestion(d.getCurrent()));
+          }
+        }
+        // print(event.logicalKey.keyLabel);
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!focusNode.hasFocus) {
+      focusNode.requestFocus();
+    }
+
+    DocumentProvider doc = Provider.of<DocumentProvider>(context);
+    Document d = doc.doc;
+    return GestureDetector(
+        child: Focus(
+          focusNode: focusNode,
+          autofocus: true,
+          onKeyEvent: (FocusNode node, KeyEvent event) {
+            if (event is KeyDownEvent) {
+              keyPressResponseDown(d, event);
+              doc.touch();
+            }
+            if (event is KeyUpEvent) {
+              keyPressResponseUp(d, event);
+              doc.touch();
+            }
+            if (event is KeyRepeatEvent) {
+              keyPressResponseDown(d, event);
+              doc.touch();
+            }
+
+            return KeyEventResult.handled;
+          },
+          child: widget.child,
+        ),
+        onTapDown: (TapDownDetails details) {
+          Offset o = screenToCursor(
+              context.findRenderObject(), details.globalPosition, doc);
+          d.moveCursor(o.dy.toInt(), o.dx.toInt());
+          doc.touch();
+        },
+        onPanUpdate: (DragUpdateDetails details) {
+          Offset o = screenToCursor(
+              context.findRenderObject(), details.globalPosition, doc);
+          if (o.dx == -1 || o.dy == -1) return;
+          d.moveCursor(o.dy.toInt(), o.dx.toInt(), keepAnchor: true);
+          doc.touch();
+        });
+  }
+}
