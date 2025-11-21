@@ -956,66 +956,6 @@ class _Dashboard extends State<Dashboard> {
                                                             20)),
                                                 child: Icon(Icons.gesture)),
                                             Spacer(),
-                                            OutlinedButton(
-                                                onPressed: () {
-                                                  print(nameController
-                                                      .text.isEmpty);
-                                                  print(conceptController
-                                                          .text ==
-                                                      constellation.concept);
-
-                                                  updateConstellation(
-                                                    db: database,
-                                                    constellationId:
-                                                        constellation.id,
-                                                    name: ((nameController
-                                                                .text.isEmpty ||
-                                                            nameController
-                                                                    .text ==
-                                                                conceptController
-                                                                    .text)
-                                                        ? (conceptController
-                                                                    .text ==
-                                                                nameController
-                                                                    .text
-                                                            ? null
-                                                            : conceptController
-                                                                .text)
-                                                        : nameController.text ==
-                                                                constellation
-                                                                    .name
-                                                            ? null
-                                                            : nameController
-                                                                .text),
-                                                    concept: conceptController
-                                                                .text ==
-                                                            constellation
-                                                                .concept
-                                                        ? null
-                                                        : conceptController
-                                                            .text,
-                                                    starred: starred ==
-                                                            constellation
-                                                                .starred
-                                                        ? null
-                                                        : starred,
-                                                  );
-                                                  Navigator.pop(context);
-                                                },
-                                                style: OutlinedButton.styleFrom(
-                                                  side: BorderSide(
-                                                      color:
-                                                          const Color.fromARGB(
-                                                              255, 0, 0, 0),
-                                                      width:
-                                                          1), // border color and width
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            40),
-                                                  ),
-                                                ),
-                                                child: Text("Save")),
                                             const SizedBox(
                                               width: 10,
                                             ),
@@ -1037,39 +977,85 @@ class _Dashboard extends State<Dashboard> {
                                                       size: 20,
                                                       color: Colors.black),
                                             ),
-                                            const SizedBox(
-                                              width: 10,
+                                            IconButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  starred =
+                                                      starred == 1 ? 0 : 1;
+                                                });
+                                              },
+                                              icon: Icon(
+                                                  Icons.delete_outline_outlined,
+                                                  size: 17,
+                                                  color: Colors.black),
                                             ),
-                                            PopupMenuButton(
-                                                tooltip: "",
-                                                shape:
-                                                    ContinuousRectangleBorder(
-                                                        side: BorderSide(
-                                                            width: 1,
-                                                            color:
-                                                                Colors.black)),
-                                                color: Colors.white,
-                                                itemBuilder:
-                                                    (BuildContext context) => [
-                                                          PopupMenuItem(
-                                                            onTap: () {
-                                                              deleteConstellation(
-                                                                  db: database,
-                                                                  constellationId:
-                                                                      constellation
-                                                                          .id);
-                                                              Navigator.pop(
-                                                                  context);
-                                                            },
-                                                            child:
-                                                                Text('Delete'),
-                                                          ),
-                                                        ],
-                                                icon: const Icon(
-                                                    Icons.more_horiz,
-                                                    size: 20,
-                                                    color: Color.fromARGB(
-                                                        255, 14, 14, 14))),
+                                            Container(
+                                                margin: EdgeInsets.all(10),
+                                                child: OutlinedButton(
+                                                    onPressed: () {
+                                                      print(nameController
+                                                          .text.isEmpty);
+                                                      print(conceptController
+                                                              .text ==
+                                                          constellation
+                                                              .concept);
+
+                                                      updateConstellation(
+                                                        db: database,
+                                                        constellationId:
+                                                            constellation.id,
+                                                        name: ((nameController
+                                                                    .text
+                                                                    .isEmpty ||
+                                                                nameController
+                                                                        .text ==
+                                                                    conceptController
+                                                                        .text)
+                                                            ? (conceptController
+                                                                        .text ==
+                                                                    nameController
+                                                                        .text
+                                                                ? null
+                                                                : conceptController
+                                                                    .text)
+                                                            : nameController
+                                                                        .text ==
+                                                                    constellation
+                                                                        .name
+                                                                ? null
+                                                                : nameController
+                                                                    .text),
+                                                        concept: conceptController
+                                                                    .text ==
+                                                                constellation
+                                                                    .concept
+                                                            ? null
+                                                            : conceptController
+                                                                .text,
+                                                        starred: starred ==
+                                                                constellation
+                                                                    .starred
+                                                            ? null
+                                                            : starred,
+                                                      );
+                                                      Navigator.pop(context);
+                                                    },
+                                                    style: OutlinedButton
+                                                        .styleFrom(
+                                                      side: BorderSide(
+                                                          color: const Color
+                                                              .fromARGB(
+                                                              255, 0, 0, 0),
+                                                          width:
+                                                              1), // border color and width
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(40),
+                                                      ),
+                                                    ),
+                                                    child: Text("Save"))),
                                           ])),
                                       ListTile(
                                           title: Column(children: [
@@ -1114,6 +1100,10 @@ class _Dashboard extends State<Dashboard> {
                                                 child: TextField(
                                                   controller: nameController,
                                                   decoration: InputDecoration(
+                                                    hintStyle: TextStyle(
+                                                        color: const Color
+                                                            .fromARGB(255, 128,
+                                                            128, 128)),
                                                     hintText: 'Enter name',
                                                     fillColor: Colors.grey[
                                                         200], // Background color
@@ -1481,7 +1471,8 @@ class _Dashboard extends State<Dashboard> {
                                                 context);
                                           }))
                                   : const SizedBox(),
-                              constellationsStarredOrdered.isNotEmpty
+                              (constellationsStarredOrdered.isNotEmpty &&
+                                      constellationsUnstarredOrdered.isNotEmpty)
                                   ? Divider()
                                   : SizedBox(),
                               Container(

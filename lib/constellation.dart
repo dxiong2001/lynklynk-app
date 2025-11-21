@@ -32,8 +32,11 @@ import 'package:lynklynk/classes/connectionClass.dart';
 import 'package:lynklynk/classes/protoMainNodeClass.dart';
 import 'package:lynklynk/classes/protoSecondaryNodeClass.dart';
 import 'package:lynklynk/classes/edgeClass.dart';
-import 'package:lynklynk/classes/smartTextWidgetClass.dart';
+import 'package:lynklynk/classes/ResponsiveGrid.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lynklynk/classes/searchbarClass.dart';
+import 'package:collection/collection.dart';
+import 'package:lynklynk/utils/editableText.dart';
 
 class AddIntent extends Intent {
   const AddIntent();
@@ -75,13 +78,14 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   late String constellationName;
   late String constellationConcept;
   late Constellation constellation;
-  Map<(int, int), String> relationMap = {};
-  Map<int, List<int>> generalToDetail = {};
-  Map<int, List<int>> detailToGeneral = {};
+  Map<(String, String), String> relationMap = {};
+  Map<String, List<String>> generalToDetail = {};
+  Map<String, List<String>> detailToGeneral = {};
 
   //list of all nodes in the constellation
-  late Map<int, Node> nodeMap;
-  Map<int, Node> topLevelMap = {};
+  late Map<int, Node> nodeMapID;
+  late Map<String, Node> nodeMapText;
+  Map<String, Node> topLevelMap = {};
 
   //bool for editing mode
   bool editingMode = true;
@@ -310,11 +314,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     setState(() {
       _loadingVisible = true;
     });
-    await Future.delayed(const Duration(milliseconds: 1000));
-    setState(() {
-      _loadingVisible = false;
-    });
-    await Future.delayed(const Duration(milliseconds: 500));
+
     database = await openDatabase(
       // Set the path to the database. Note: Using the `join` function from the
       // `path` package is best practice to ensure the path is correctly
@@ -330,15 +330,18 @@ class _Test extends State<Test> with TickerProviderStateMixin {
       // path to perform database upgrades and downgrades.
       version: 1,
     );
-    final List<Map<String, dynamic>> rows = await database.query("nodes");
+    final List<Map<String, dynamic>> rows = await database.query("edges");
+    print("----------");
 
     for (final row in rows) {
+      print("----------");
       print(row);
     }
+    print("----------");
+
     try {
       List<Node> queryResultsList = await getNodeList(constellationID);
       List<Edge> edgeList = await getEdgeList(constellationID);
-      print("list: " + queryResultsList.toString());
       if (queryResultsList.isNotEmpty) {
         editingMode = false;
         focusedNode = queryResultsList[0];
@@ -347,18 +350,25 @@ class _Test extends State<Test> with TickerProviderStateMixin {
       constellation = await getConstellation(constellationID);
       print("got constellation");
       setState(() {
+        nodeMapID = {for (Node n in queryResultsList) n.id: n};
+        nodeMapText = {for (Node n in queryResultsList) n.text: n};
+        print(edgeList);
         getEdgeMappings(edgeList);
-        nodeMap = {for (Node n in queryResultsList) n.id: n};
-        for (int n in nodeMap.keys) {
+        for (String n in nodeMapText.keys) {
           if (detailToGeneral[n] == null) {
-            topLevelMap[n] = nodeMap[n]!;
+            topLevelMap[n] = nodeMapText[n]!;
           }
         }
-        loading = false;
       });
     } catch (e) {
       print(e);
     }
+
+    await Future.delayed(const Duration(milliseconds: 1000));
+    setState(() {
+      loading = false;
+    });
+    await Future.delayed(const Duration(milliseconds: 500));
   }
 
   Future<List<Node>> getNodeList(int constellationId) async {
@@ -514,16 +524,16 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     print("constellationUpdated");
   }
 
-  List<Node> getNodeConnections(int nodeID) {
-    return (generalToDetail[nodeID]!
-        .map((e) => nodeMap[e])
+  List<Node> getNodeConnections(String node) {
+    return (generalToDetail[node]!
+        .map((e) => nodeMapText[e])
         .whereType<Node>()
         .toList());
   }
 
-  void addToMap(int key, int value, Map map) {
+  void addToMap(String key, String value, Map map) {
     // Get the list or create a new one if the key doesn't exist
-    List<int> list = map[key] ?? [];
+    List<String> list = map[key] ?? [];
 
     // Add the value only if it’s not already in the list
     if (!list.contains(value)) {
@@ -537,37 +547,44 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   }
 
   void getEdgeMappings(List<Edge> edges) {
+    print(edges);
     for (Edge e in edges) {
-      addToMap(e.fromNodeID, e.toNodeID, generalToDetail);
-      addToMap(e.toNodeID, e.fromNodeID, detailToGeneral);
-      relationMap[(e.fromNodeID, e.toNodeID)] = e.relation;
+      String fromNode = nodeMapID[e.fromNodeID]!.text;
+      String toNode = nodeMapID[e.toNodeID]!.text;
+      print(e);
+      addToMap(fromNode, toNode, generalToDetail);
+      addToMap(toNode, fromNode, detailToGeneral);
+      relationMap[(fromNode, toNode)] = e.relation;
     }
 
     setState(() {});
   }
 
-  List<String> getNodeConnectionsParsed(int nodeID) {
-    return getNodeConnections(nodeID).map((e) => e.text).toList();
+  List<String> getNodeConnectionsParsed(String nodeText) {
+    return getNodeConnections(nodeText).map((e) => e.text).toList();
   }
 
-  void insertNodeConnectionLocal(int node1, int node2,
+  void insertNodeConnectionLocal(String node1, String node2,
       {int index = -1, String relation = ""}) {
     if (index == -1) {
       generalToDetail[node1]!.add(node2);
     } else {
-      generalToDetail[node1]!.insert(node2, index);
+      generalToDetail[node1]!.insert(index, node2);
     }
   }
 
-  deleteNodeConnectionLocal(int node1, int node2, {String relation = ""}) {
+  deleteNode(String node) {}
+
+  deleteNodeConnectionLocal(String node1, String node2,
+      {String relation = ""}) {
     generalToDetail[node1]!.removeWhere((item) => item == node2);
     detailToGeneral[node2]!.removeWhere((item) => item == node1);
   }
 
-  reorderableListNodeSwap(int node, int oldIndex, int newIndex) {
+  reorderableListNodeSwap(String node, int oldIndex, int newIndex) {
     setState(() {
-      int term = generalToDetail[node]!.removeAt(oldIndex);
-      generalToDetail[node]!.insert(term, newIndex);
+      String term = generalToDetail[node]!.removeAt(oldIndex);
+      generalToDetail[node]!.insert(newIndex, term);
     });
   }
 
@@ -593,11 +610,11 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     List<Node> returnList = [];
 
     if (!matchCase) {
-      returnList = nodeMap.values
+      returnList = nodeMapID.values
           .where((e) => e.text.startsWith(controller.text))
           .toList();
     } else {
-      returnList = nodeMap.values
+      returnList = nodeMapID.values
           .where((e) => e.text.startsWith(controller.text))
           .toList();
     }
@@ -649,7 +666,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           // Create a Card based on the color and the content of the dragged one
           // and set its elevation to the animated value.
           child: auxiliaryDisplay(
-              getNodeConnectionsParsed(focusedNode.id)[index], 1),
+              getNodeConnectionsParsed(focusedNode.text)[index], 1),
         );
       },
       child: child,
@@ -669,7 +686,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
           // Create a Card based on the color and the content of the dragged one
           // and set its elevation to the animated value.
           child: auxiliaryDisplay(
-              getNodeConnectionsParsed(secondaryNode!.id)[index], 2),
+              getNodeConnectionsParsed(secondaryNode!.text)[index], 2),
         );
       },
       child: child,
@@ -687,12 +704,13 @@ class _Test extends State<Test> with TickerProviderStateMixin {
     // print(nodeMap);
     // print("display");
     // print(nodeMap.containsKey(term));
-    if (!nodeMap.containsKey(term)) {
+    if (!nodeMapID.containsKey(term)) {
       return Container(
         key: UniqueKey(),
       );
     }
-    Node auxNode = nodeMap[term]!;
+    print("term: $term");
+    Node auxNode = nodeMapText[term]!;
     return Container(
         key: UniqueKey(),
         child: Row(
@@ -759,7 +777,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                       });
                       await Future.delayed(Duration(milliseconds: 400));
                       setState(() {
-                        focusedNode = nodeMap[term]!;
+                        focusedNode = nodeMapID[term]!;
                       });
                       await Future.delayed(Duration(milliseconds: 400));
                       _controller.forward();
@@ -861,94 +879,128 @@ class _Test extends State<Test> with TickerProviderStateMixin {
         .toList();
   }
 
-  void createNode(Connection c) async {
+  Future<void> createNode(Connection c) async {
     final db = await database;
     final now = DateTime.now().toIso8601String();
     List<Node> newNodeList = [];
+    String mainNodeText = c.mainNode.controller.text;
     await db.transaction((txn) async {
       final batch = txn.batch();
-      var n = {
-        'constellation_id': constellation.id,
-        'text': c.mainNode.controller.text,
-        'type': c.mainNode.type,
-        'source': c.mainNode.externalFileLoaded ?? "",
-        'created_at': now,
-        'updated_at': now,
-      };
-      batch.insert('nodes', n);
-      newNodeList.add(Node(
-          id: -1,
-          constellationID: constellation.id,
-          text: c.mainNode.controller.text,
-          type: c.mainNode.type,
-          source: c.mainNode.externalFileLoaded ?? "",
-          createdAt: now,
-          updatedAt: now));
-      int secondaryCount = 0;
-      for (final s in c.secondaryNodeList) {
-        if (s.controller.text.isEmpty) continue;
 
-        secondaryCount++;
-        batch.insert(
-          'nodes',
-          {
-            'constellation_id': constellation.id,
-            'text': s.controller.text,
-            'type': s.type,
-            'source': s.externalFileLoaded ?? '',
-            'created_at': now,
-            'updated_at': now,
-          },
-        );
+      //Check if node exists
+      int? nodeID;
+      Node? firstWhere = nodeMapText[mainNodeText];
+
+      if (firstWhere != null) {
+        //if node exists
+        nodeID = firstWhere.id;
+      } else {
+        //if node does not exist
+        var n = {
+          'constellation_id': constellation.id,
+          'text': mainNodeText,
+          'type': c.mainNode.type,
+          'source': c.mainNode.externalFileLoaded ?? "",
+          'created_at': now,
+          'updated_at': now,
+        };
+        batch.insert('nodes', n);
         newNodeList.add(Node(
             id: -1,
             constellationID: constellation.id,
-            text: s.controller.text,
-            type: s.type,
-            source: s.externalFileLoaded ?? '',
+            text: mainNodeText,
+            type: c.mainNode.type,
+            source: c.mainNode.externalFileLoaded ?? "",
             createdAt: now,
             updatedAt: now));
       }
 
-      // Do NOT use `noResult: true` if you want IDs
+      for (final s in c.secondaryNodeList) {
+        if (nodeMapText[s.controller.text] == null) {
+          if (s.controller.text.trim().isEmpty) continue;
+
+          batch.insert(
+            'nodes',
+            {
+              'constellation_id': constellation.id,
+              'text': s.controller.text,
+              'type': s.type,
+              'source': s.externalFileLoaded ?? '',
+              'created_at': now,
+              'updated_at': now,
+            },
+          );
+          newNodeList.add(Node(
+              id: -1,
+              constellationID: constellation.id,
+              text: s.controller.text,
+              type: s.type,
+              source: s.externalFileLoaded ?? '',
+              createdAt: now,
+              updatedAt: now));
+        }
+      }
+
       final List<int> results1 = (await batch.commit())
           .whereType<int>()
           .toList(); // This returns a list of inserted row IDs
-
-      final Map<int, Node> toInsert = Map.fromIterables(results1, newNodeList);
-      nodeMap = {...nodeMap, ...toInsert};
-      final dependentBatch = txn.batch();
-      int mainID = results1[0];
-      List<int> castList = (results1.length > 1 ? results1 : []);
-      generalToDetail[mainID] =
-          {...(generalToDetail[mainID] ?? []), ...castList}.toList();
-      for (int i = 1; i < results1.length; i++) {
-        detailToGeneral[results1[i]] = {
-          ...(detailToGeneral[results1[i]] ?? []),
-          ...[mainID]
-        }.toList();
-        relationMap[(mainID, i)] = c.secondaryNodeList[i - 1].controller.text;
+      for (int i = 0; i < newNodeList.length; i++) {
+        newNodeList[i].id = results1[i];
       }
 
-      if (secondaryCount == 0) {}
+      final Map<int, Node> toInsert = Map.fromIterables(results1, newNodeList);
+      nodeMapID = {...nodeMapID, ...toInsert};
+      nodeMapText = {
+        ...nodeMapText,
+        ...Map.fromIterables(
+            newNodeList.map(
+              (e) => e.text,
+            ),
+            newNodeList)
+      };
+      print("---------------");
+      final dependentBatch = txn.batch();
+      int mainID = nodeID ?? results1.removeAt(0);
 
+      generalToDetail[mainNodeText] = {
+        ...(generalToDetail[mainNodeText] ?? []),
+        ...c.secondaryNodeList.map(
+          (e) => e.controller.text,
+        )
+      }.toList();
+      for (int i = 0; i < c.secondaryNodeList.length; i++) {
+        String secondaryText = c.secondaryNodeList[i].controller.text;
+        detailToGeneral[secondaryText] = {
+          ...(detailToGeneral[secondaryText] ?? []),
+          ...[mainNodeText]
+        }.toList();
+        relationMap[(mainNodeText, secondaryText)] = secondaryText;
+      }
       for (int s = 0; s < c.secondaryNodeList.length; s++) {
-        if (c.secondaryNodeList[s].controller.text.isEmpty) continue;
+        String secondaryText = c.secondaryNodeList[s].controller.text.trim();
+        if (secondaryText.isEmpty) continue;
+        print("secondary text: $secondaryText");
+        print("id: ${nodeMapText[secondaryText]!.id}");
         dependentBatch.insert("edges", {
           "constellation_id": constellation.id,
-          "from_node_id": results1[0],
-          "to_node_id": results1[s + 1],
+          "from_node_id": mainID,
+          "to_node_id": nodeMapText[secondaryText]!.id,
           "relation": c.secondaryNodeList[s].modifierController.text,
           "created_at": now,
           "updated_at": now,
         });
       }
-      final results2 = await dependentBatch.commit();
+      (await dependentBatch.commit());
 
-      return (results1, results2);
+      if (detailToGeneral[mainNodeText] == null && nodeMapID[mainID] != null) {
+        topLevelMap[mainNodeText] = nodeMapID[mainID]!;
+      }
+      return topLevelMap;
     });
-    print(nodeMap);
-    setState(() {});
+    print(nodeMapText);
+    setState(() {
+      print("--------------------updated after create");
+    });
 
     switchScene(true);
   }
@@ -1127,20 +1179,20 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   Widget nodeModifierInput(TextEditingController controller, bool selected) {
     return Container(
         alignment: Alignment.center,
-        padding: EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(20)),
         width: 180,
         height: 50,
         child: TextField(
-          style: TextStyle(fontSize: 14),
+          style: const TextStyle(fontSize: 14),
           controller: controller,
           cursorColor: Colors.black,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: "Modifier",
             hintStyle: TextStyle(
                 fontSize: 14,
-                color: const Color.fromARGB(255, 193, 193, 193),
+                color: Color.fromARGB(255, 193, 193, 193),
                 fontWeight: FontWeight.bold),
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
@@ -1485,7 +1537,6 @@ class _Test extends State<Test> with TickerProviderStateMixin {
               currentMainProtoNode = index;
 
               currentSecondaryProtoNode = -1;
-              print("test");
               outerClicked = false;
             }
           });
@@ -1591,7 +1642,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                         BorderRadiusGeometry.circular(20))))),
                     SizedBox(width: 250),
                     TextButton(
-                        onPressed: () {
+                        onPressed: () async {
                           for (Connection c in connectionList) {
                             if ((c.mainNode.externalFileLoaded != null &&
                                     c.mainNode.controller.text.isEmpty) ||
@@ -1612,7 +1663,8 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                           }
 
                           for (Connection c in connectionList) {
-                            createNode(c);
+                            print("-create-----------------");
+                            await createNode(c);
                           }
                           Future.delayed(const Duration(milliseconds: 600), () {
                             // Your function here
@@ -2047,19 +2099,19 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                     ],
                   ),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Expanded(
                   child: Container(
                       decoration: BoxDecoration(
                           color: const Color.fromARGB(255, 255, 255, 255),
                           borderRadius: BorderRadius.circular(20)),
                       width: 300,
-                      padding: EdgeInsets.all(18),
+                      padding: const EdgeInsets.all(18),
                       child: SingleChildScrollView(
                         child: Column(children: [
                           Container(
                               width: double.infinity,
-                              padding: EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                   color:
                                       const Color.fromARGB(255, 255, 255, 255),
@@ -2073,11 +2125,12 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                         fontSize: 20,
                                         color: Color.fromARGB(255, 0, 0, 0)),
                                   ),
-                                  Spacer(),
+                                  const Spacer(),
                                   Container(
-                                      padding: EdgeInsets.all(5),
+                                      padding: const EdgeInsets.all(5),
                                       decoration: BoxDecoration(
-                                          color: Color.fromARGB(41, 63, 61, 86),
+                                          color: const Color.fromARGB(
+                                              41, 63, 61, 86),
                                           borderRadius:
                                               BorderRadius.circular(20)),
                                       child: Icon(
@@ -2086,35 +2139,35 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                       ))
                                 ],
                               )),
-                          Divider(color: Colors.white),
+                          const Divider(color: Colors.white),
                           Container(
                               width: double.infinity,
-                              padding: EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                   color:
                                       const Color.fromARGB(255, 248, 248, 248),
                                   borderRadius: BorderRadius.circular(5)),
                               child: Text(
                                 firstSentence,
-                                style: TextStyle(
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
-                                    color: const Color.fromARGB(255, 0, 0, 0)),
+                                    color: Color.fromARGB(255, 0, 0, 0)),
                               )),
-                          Divider(color: Colors.white),
+                          const Divider(color: Colors.white),
                           Container(
                               width: double.infinity,
-                              padding: EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                   color:
                                       const Color.fromARGB(255, 248, 248, 248),
                                   borderRadius: BorderRadius.circular(5)),
                               child: Text(
                                 rest,
-                                style: TextStyle(
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
-                                    color: const Color.fromARGB(255, 0, 0, 0)),
+                                    color: Color.fromARGB(255, 0, 0, 0)),
                               )),
                         ]),
                       )),
@@ -2124,59 +2177,312 @@ class _Test extends State<Test> with TickerProviderStateMixin {
   }
 
   List<Node> getTopLevelNodes() {
-    List<Node> topLevel = [];
-    for (int k in generalToDetail.keys) {
-      if (detailToGeneral[k] == null) {
-        topLevel.add(nodeMap[k]!);
-      }
-    }
-    print(topLevel);
-    return topLevel;
+    return topLevelMap.values.toList();
   }
 
-  Widget directoryEntry(Node n, int level) {
-    print(generalToDetail);
+  double directoryEntryWidth = 580;
+
+  Widget directoryEntryTop(Node? n, {int index = -1}) {
     Widget entry = Container(
-        padding: EdgeInsets.all(20),
-        width: 200,
+        margin: const EdgeInsets.only(bottom: 45),
+        width: directoryEntryWidth,
+        padding: const EdgeInsets.only(left: 10, right: 10, top: 10),
         decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(20)),
-        child: Column(
-          children: [
-            n.type == 1 ? Image.file(File(n.source)) : SizedBox.shrink(),
-            Text(n.text),
-            // ListView.builder(
-            //     padding: const EdgeInsets.all(8),
-            //     itemCount: generalToDetail[n.id]!.length,
-            //     itemBuilder: (BuildContext context, int index) {
-            //       return directoryEntry(
-            //           nodeMap[generalToDetail[n.id]![index]]!, 0);
-            //     })
-          ],
-        ));
-    return Container(child: entry);
+        child: n == null
+            ? const SizedBox.shrink()
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                      child: Row(children: [
+                    Column(
+                      children: [
+                        n.type == 1
+                            ? Container(
+                                margin: EdgeInsets.only(bottom: 10),
+                                decoration: BoxDecoration(
+                                    border:
+                                        Border.all(color: primary1, width: 3),
+                                    borderRadius: BorderRadius.circular(10)),
+                                constraints: BoxConstraints(
+                                    maxWidth: directoryEntryWidth),
+                                child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(7),
+                                    child: Image.file(File(n.source),
+                                        fit: BoxFit.fitWidth)))
+                            : const SizedBox.shrink(),
+                        Container(
+                          width: directoryEntryWidth,
+                          decoration: BoxDecoration(
+                              color: primary1,
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Row(
+                            children: [
+                              Container(
+                                  decoration: BoxDecoration(
+                                      color: primary1,
+                                      borderRadius: BorderRadius.circular(10)),
+                                  child: Container(
+                                      margin: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 8),
+                                      child: SizedBox(
+                                        width: 560,
+                                        child: DoubleTapEditableText(
+                                          textColor: Colors.white,
+                                          fontSize: 25,
+                                          backgroundColor: primary1,
+                                          initialText: n.text,
+                                          onSubmitted: (newText) {
+                                            setState(() {
+                                              if (newText.isNotEmpty) {
+                                                n.text = newText;
+                                              } else {} // update state when user finishes editing
+                                            });
+                                          },
+                                        ),
+                                      ))),
+                              Spacer(),
+                              PopupMenuButton(
+                                  tooltip: "",
+                                  shape: ContinuousRectangleBorder(
+                                      side: BorderSide(
+                                          width: 1, color: Colors.black)),
+                                  color: Colors.white,
+                                  itemBuilder: (BuildContext context) => [
+                                        PopupMenuItem(
+                                          onTap: () => {},
+                                          child: Text('Edit'),
+                                        ),
+                                        PopupMenuItem(
+                                          onTap: () => {},
+                                          child: Text('Delete'),
+                                        ),
+                                      ],
+                                  icon: const Icon(Icons.more_horiz,
+                                      size: 20,
+                                      color:
+                                          Color.fromARGB(255, 255, 255, 255)))
+                            ],
+                          ),
+                        )
+                      ],
+                    )
+                  ])),
+                  generalToDetail[n.text] != null
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Column(children: [
+                            ListView.separated(
+                              shrinkWrap:
+                                  true, // use this if inside another scrollable
+                              itemCount: generalToDetail[n.text]!.length,
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                return Container(
+                                  child: directoryEntry(
+                                      nodeMapText[
+                                          generalToDetail[n.text]![index]],
+                                      1,
+                                      index: index),
+                                );
+                              },
+                            ),
+                          ]))
+                      : const SizedBox.shrink()
+                ],
+              ));
+    return SizedBox(child: entry);
+  }
+
+  Widget directoryEntry(Node? n, int level, {int index = -1}) {
+    // print(level);
+    // print("text: ${n.text}");
+    print(n);
+    Widget entry = Container(
+        width: directoryEntryWidth,
+        padding: (level == 1 ? EdgeInsets.symmetric(vertical: 0) : null),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        child: n == null
+            ? SizedBox.shrink()
+            : level < 6
+                ? Container(
+                    padding: (level == 1 && generalToDetail[n.text] != null)
+                        ? EdgeInsets.only(right: 10, top: 10, bottom: 10)
+                        : EdgeInsets.all(0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                            child: Row(children: [
+                          Column(
+                            children: [
+                              n.type == 1
+                                  ? Container(
+                                      margin: EdgeInsets.only(bottom: 10),
+                                      decoration: BoxDecoration(
+                                          border: Border.all(
+                                              color: primary1, width: 3),
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      constraints: BoxConstraints(
+                                          maxWidth: directoryEntryWidth),
+                                      child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(7),
+                                          child: Image.file(File(n.source),
+                                              fit: BoxFit.fitWidth)))
+                                  : const SizedBox.shrink(),
+                              Row(
+                                  mainAxisSize: MainAxisSize.max,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                        margin: EdgeInsets.only(top: 15),
+                                        child: Container(
+                                          // decoration: BoxDecoration(
+                                          //     border: Border.all()),
+                                          width: 30,
+                                          child: level % 2 == 0
+                                              ? Icon(
+                                                  Icons.circle,
+                                                  size: 9,
+                                                  color: primary1,
+                                                )
+                                              : Icon(
+                                                  Icons.square,
+                                                  size: 9,
+                                                  color: primary1,
+                                                ),
+                                        )),
+                                    SizedBox(
+                                        width: level == 1
+                                            ? 522
+                                            : (500 - ((level - 1) * 30))
+                                                .toDouble(),
+                                        child: Container(
+                                            padding: EdgeInsets.all(
+                                                level == 1 ? 10 : 0),
+                                            decoration: (level == 1 &&
+                                                    generalToDetail[n.text] !=
+                                                        null)
+                                                ? BoxDecoration(
+                                                    border: Border.all(
+                                                        color: const Color
+                                                            .fromARGB(255, 147,
+                                                            147, 147)),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10))
+                                                : null,
+                                            child: Column(children: [
+                                              DoubleTapEditableText(
+                                                initialText: n.text,
+                                                onSubmitted: (newText) {
+                                                  setState(() {
+                                                    if (newText.isNotEmpty) {
+                                                      n.text = newText;
+                                                    } // update state when user finishes editing
+                                                  });
+                                                },
+                                              ),
+                                              generalToDetail[n.text] != null
+                                                  ? Column(children: [
+                                                      SizedBox(height: 10),
+                                                      ListView.separated(
+                                                        shrinkWrap:
+                                                            true, // use this if inside another scrollable
+                                                        itemCount:
+                                                            generalToDetail[
+                                                                    n.text]!
+                                                                .length,
+                                                        separatorBuilder:
+                                                            (context, index) =>
+                                                                const SizedBox(
+                                                                    height: 10),
+                                                        itemBuilder:
+                                                            (context, index) {
+                                                          return Container(
+                                                            child: directoryEntry(
+                                                                nodeMapText[
+                                                                    generalToDetail[
+                                                                            n.text]![
+                                                                        index]],
+                                                                level + 1,
+                                                                index: index),
+                                                          );
+                                                        },
+                                                      ),
+                                                    ])
+                                                  : const SizedBox.shrink()
+                                            ])))
+                                  ])
+                            ],
+                          )
+                        ])),
+                      ],
+                    ))
+                : const SizedBox.shrink());
+    return SizedBox(child: entry);
   }
 
   Widget directoryView() {
     List<Node> topLevelNodes = topLevelMap.values.toList();
-    return Container(
-        margin: EdgeInsets.only(top: 70),
-        padding: EdgeInsets.all(20),
-        child: ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: topLevelNodes.length,
-            itemBuilder: (BuildContext context, int index) {
-              return directoryEntry(topLevelNodes[index], 0);
-            }));
+    topLevelNodes.removeWhere(
+      (element) => element.text == constellationConcept,
+    );
+    print(detailToGeneral);
+    print(topLevelNodes.map((e) => e.text));
+    // print(topLevelNodes.map((e) => e.text));
+    return Center(
+        child: Stack(children: [
+      SingleChildScrollView(
+          child: Container(
+              width: double.infinity,
+              child: Align(
+                  alignment: Alignment.center,
+                  child: Container(
+                      width: 600,
+                      margin: EdgeInsets.only(top: 40, left: 10, right: 10),
+                      child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(
+                            scrollbars: false, // disables the scrollbar
+                          ),
+                          child: ReorderableListView.builder(
+                              physics:
+                                  const NeverScrollableScrollPhysics(), // disables scrolling
+                              shrinkWrap: true,
+                              itemBuilder: (BuildContext context, int index) {
+                                return Container(
+                                    key: UniqueKey(),
+                                    width: 600,
+                                    child: directoryEntryTop(
+                                        topLevelNodes[index],
+                                        index: index));
+                              },
+                              onReorder: (oldIndex, newIndex) {
+                                setState(() {
+                                  Node newIndexNode = topLevelNodes[newIndex];
+                                  topLevelNodes[newIndex] =
+                                      topLevelNodes[oldIndex];
+                                  topLevelNodes[oldIndex] = newIndexNode;
+                                });
+                              },
+                              itemCount: topLevelNodes.length)))))),
+    ]));
   }
 
   Widget expandedView() {
     return Container(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         alignment: Alignment.bottomCenter,
         decoration: BoxDecoration(color: backgroundColor),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          nodeMap[focusedNode.id] == null
+          nodeMapID[focusedNode.id] == null
               ? MouseRegion(
                   onEnter: (details) => setState(() => mainNodeHover = true),
                   onExit: (details) => setState(() {
@@ -2192,7 +2498,8 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                 constraints: const BoxConstraints(
                                     maxWidth: 500, minHeight: 200),
                                 alignment: Alignment.center,
-                                padding: EdgeInsets.symmetric(horizontal: 10),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(20),
                                   border:
@@ -2220,7 +2527,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                   SizedBox(
                       width: double.infinity,
                       child: AnimatedAlign(
-                          duration: Duration(milliseconds: 400),
+                          duration: const Duration(milliseconds: 400),
                           curve: Curves.easeInOut,
                           alignment: Alignment.center,
                           child: SizedBox(
@@ -2228,14 +2535,15 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                               child: Row(children: [
                                 AnimatedSlide(
                                     offset: showSecond
-                                        ? Offset(0, 0)
+                                        ? const Offset(0, 0)
                                         : showCenter
-                                            ? Offset(0.25, 0)
-                                            : Offset(0.5, 0),
-                                    duration: Duration(milliseconds: 600),
+                                            ? const Offset(0.25, 0)
+                                            : const Offset(0.5, 0),
+                                    duration: const Duration(milliseconds: 600),
                                     curve: Curves.easeInOut,
                                     child: AnimatedAlign(
-                                      duration: Duration(milliseconds: 400),
+                                      duration:
+                                          const Duration(milliseconds: 400),
                                       curve: Curves.easeInOut,
                                       alignment: Alignment.center,
                                       child: SizedBox(
@@ -2249,21 +2557,25 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                         ? _fadeAnimation1.value
                                                         : 1,
                                                     curve: Curves.easeInOut,
-                                                    duration: Duration(
+                                                    duration: const Duration(
                                                         milliseconds: 200),
                                                     child: AnimatedSlide(
-                                                        offset: Offset(0, 0),
-                                                        duration: Duration(
-                                                            milliseconds: 600),
+                                                        offset:
+                                                            const Offset(0, 0),
+                                                        duration:
+                                                            const Duration(
+                                                                milliseconds:
+                                                                    600),
                                                         curve: Curves.easeInOut,
                                                         child: Container(
                                                             constraints:
-                                                                BoxConstraints(
+                                                                const BoxConstraints(
                                                               minHeight: 60,
                                                               maxWidth: 400,
                                                             ),
                                                             padding:
-                                                                EdgeInsets.only(
+                                                                const EdgeInsets
+                                                                    .only(
                                                               right: 20,
                                                             ),
                                                             child:
@@ -2292,7 +2604,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
 
                                                                   // First animate left container
                                                                   await Future.delayed(
-                                                                      Duration(
+                                                                      const Duration(
                                                                           milliseconds:
                                                                               400));
 
@@ -2316,7 +2628,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                       .reverse();
 
                                                                   await Future.delayed(
-                                                                      Duration(
+                                                                      const Duration(
                                                                           milliseconds:
                                                                               350));
 
@@ -2355,7 +2667,8 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                           Alignment
                                                                               .center,
                                                                       child: Container(
-                                                                          padding: EdgeInsets.all(
+                                                                          padding: const EdgeInsets
+                                                                              .all(
                                                                               15),
                                                                           child: focusedNode.type == 1
                                                                               ? Image.file(File(focusedNode.text))
@@ -2367,7 +2680,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                     child: IgnorePointer(
                                                         ignoring: !showCenter,
                                                         child: ClipRect(
-                                                          child: Container(
+                                                          child: SizedBox(
                                                             // decoration: BoxDecoration(border: Border.all(color: Colors.black, width: 1)),
                                                             width:
                                                                 400, // Always reserve space
@@ -2394,7 +2707,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                               },
                                                               child: Container(
                                                                 constraints:
-                                                                    BoxConstraints(
+                                                                    const BoxConstraints(
                                                                         maxWidth:
                                                                             400),
                                                                 child:
@@ -2402,7 +2715,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                   shrinkWrap:
                                                                       true,
                                                                   physics:
-                                                                      ClampingScrollPhysics(),
+                                                                      const ClampingScrollPhysics(),
                                                                   padding:
                                                                       const EdgeInsets
                                                                           .only(
@@ -2416,13 +2729,14 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                     setState(
                                                                         () {
                                                                       if (oldIndex <
-                                                                          newIndex)
+                                                                          newIndex) {
                                                                         newIndex -=
                                                                             1;
+                                                                      }
                                                                       if (oldIndex !=
                                                                           newIndex) {
                                                                         reorderableListNodeSwap(
-                                                                            focusedNode.id,
+                                                                            focusedNode.text,
                                                                             oldIndex,
                                                                             newIndex);
                                                                       }
@@ -2430,7 +2744,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                   },
                                                                   children: showCenter
                                                                       ? getNodeConnectionsParsed(focusedNode
-                                                                              .id)
+                                                                              .text)
                                                                           .map((e) => auxiliaryDisplay(
                                                                               e,
                                                                               1))
@@ -2460,10 +2774,11 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                       },
                                       child: Container(
                                         constraints:
-                                            BoxConstraints(maxWidth: 400),
+                                            const BoxConstraints(maxWidth: 400),
                                         child: ReorderableListView(
                                           shrinkWrap: true,
-                                          physics: ClampingScrollPhysics(),
+                                          physics:
+                                              const ClampingScrollPhysics(),
                                           padding:
                                               const EdgeInsets.only(right: 10),
                                           proxyDecorator:
@@ -2472,11 +2787,12 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                               (int oldIndex, int newIndex) {
                                             setState(() {
                                               if (secondaryNode == null) return;
-                                              if (oldIndex < newIndex)
+                                              if (oldIndex < newIndex) {
                                                 newIndex -= 1;
+                                              }
                                               if (oldIndex != newIndex) {
                                                 reorderableListNodeSwap(
-                                                    secondaryNode!.id,
+                                                    secondaryNode!.text,
                                                     oldIndex,
                                                     newIndex);
                                               }
@@ -2485,7 +2801,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                           children: secondaryNode == null
                                               ? []
                                               : getNodeConnectionsParsed(
-                                                      secondaryNode!.id)
+                                                      secondaryNode!.text)
                                                   .map((e) =>
                                                       auxiliaryDisplay(e, 2))
                                                   .toList(),
@@ -2511,11 +2827,10 @@ class _Test extends State<Test> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    double totalWidth = showCenter ? 800 : 800;
     return Shortcuts(
-        shortcuts: <ShortcutActivator, Intent>{},
+        shortcuts: const <ShortcutActivator, Intent>{},
         child: Actions(
-            actions: <Type, Action<Intent>>{},
+            actions: const <Type, Action<Intent>>{},
             child: Scaffold(
                 appBar: AppBar(
                   scrolledUnderElevation: 0,
@@ -2540,13 +2855,14 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                             // Color.fromARGB(255, 75, 185, 233),
 
                             child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 10),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
                               color: const Color.fromARGB(255, 255, 255, 255),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  Icon(Icons.rocket_launch_sharp),
-                                  Spacer(),
+                                  const Icon(Icons.rocket_launch_sharp),
+                                  const Spacer(),
                                   Container(
                                       width: 30,
                                       height: 30,
@@ -2614,14 +2930,13 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                     ? AnimatedOpacity(
                         opacity: _loadingVisible ? 1.0 : 0.0,
                         duration: const Duration(milliseconds: 200),
-                        child: Container(
-                            child: Center(
-                                child: LoadingAnimationWidget.halfTriangleDot(
-                                    color: primary2, size: 50))))
+                        child: Center(
+                            child: LoadingAnimationWidget.halfTriangleDot(
+                                color: primary2, size: 50)))
                     : Shortcuts(
                         shortcuts: <LogicalKeySet, Intent>{
                             LogicalKeySet(LogicalKeyboardKey.enter,
-                                LogicalKeyboardKey.shift): AddIntent(),
+                                LogicalKeyboardKey.shift): const AddIntent(),
                           },
                         child: Actions(
                             actions: <Type, Action<Intent>>{
@@ -2655,51 +2970,48 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                       child: AnimatedBuilder(
                                                           animation:
                                                               _sceneColorController,
-                                                          builder: (_, __) => Container(
-                                                              padding: EdgeInsets.all(20),
-                                                              decoration: const BoxDecoration(
-                                                                color: Color
-                                                                    .fromARGB(
-                                                                        255,
-                                                                        218,
-                                                                        218,
-                                                                        234), // Background color
-                                                              ),
-                                                              child: Container(
-                                                                  decoration: BoxDecoration(
-                                                                    borderRadius:
-                                                                        BorderRadius.circular(
-                                                                            10),
-                                                                    border: Border.all(
-                                                                        color: _borderColor.value ??
-                                                                            Colors.black),
+                                                          builder: (_, __) =>
+                                                              Container(
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .all(
+                                                                          20),
+                                                                  decoration:
+                                                                      const BoxDecoration(
+                                                                    color: Color
+                                                                        .fromARGB(
+                                                                            255,
+                                                                            218,
+                                                                            218,
+                                                                            234), // Background color
                                                                   ),
-                                                                  child: ClipRRect(
-                                                                      borderRadius: BorderRadius.circular(10),
-                                                                      child: Stack(alignment: Alignment.center, children: [
+                                                                  child: Container(
+                                                                      decoration: BoxDecoration(
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(10),
+                                                                        border: Border.all(
+                                                                            color:
+                                                                                _borderColor.value ?? Colors.black),
+                                                                      ),
+                                                                      child: ClipRRect(
+                                                                          borderRadius: BorderRadius.circular(10),
+                                                                          child: Stack(alignment: Alignment.center, children: [
 // -------------------------------------------------------------------------------------------------------------------------------------
 // Node Submission Dashboard
 // -------------------------------------------------------------------------------------------------------------------------------------
 
-                                                                        Container(
-                                                                          padding:
-                                                                              EdgeInsets.all(20),
-                                                                          decoration:
-                                                                              BoxDecoration(
-                                                                            color: const Color.fromARGB(
-                                                                                255,
-                                                                                218,
-                                                                                218,
-                                                                                234),
-                                                                          ),
-                                                                          child:
-                                                                              sceneController(context),
-                                                                        )
+                                                                            Container(
+                                                                              padding: const EdgeInsets.all(20),
+                                                                              decoration: const BoxDecoration(
+                                                                                color: Color.fromARGB(255, 218, 218, 234),
+                                                                              ),
+                                                                              child: sceneController(context),
+                                                                            )
 
 // -------------------------------------------------------------------------------------------------------------------------------------
 // Node Flashcard Mode
 // -------------------------------------------------------------------------------------------------------------------------------------
-                                                                      ]))))))),
+                                                                          ]))))))),
                                               Positioned(
                                                   top: 30,
                                                   child: SlideTransition(
@@ -2757,7 +3069,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                                     mainScrollController
                                                                         .animateTo(
                                                                       0, // Scroll to top (offset 0)
-                                                                      duration: Duration(
+                                                                      duration: const Duration(
                                                                           milliseconds:
                                                                               400), // Adjust speed here
                                                                       curve: Curves
@@ -2796,7 +3108,7 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                     style: const ButtonStyle(
                                                         shape: WidgetStatePropertyAll(
                                                             RoundedRectangleBorder())),
-                                                    icon: Icon(Pelaicons
+                                                    icon: const Icon(Pelaicons
                                                         .downArrow1Bold),
                                                     onPressed: () {
                                                       if (scene == 3) {
@@ -2826,7 +3138,8 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                               style: const ButtonStyle(
                                                   shape: WidgetStatePropertyAll(
                                                       RoundedRectangleBorder())),
-                                              icon: Icon(Pelaicons.homeBold),
+                                              icon: const Icon(
+                                                  Pelaicons.homeBold),
                                               onPressed: () {
                                                 Navigator.pop(context);
                                               },
@@ -2848,12 +3161,12 @@ class _Test extends State<Test> with TickerProviderStateMixin {
                                                   style: const ButtonStyle(
                                                       shape: WidgetStatePropertyAll(
                                                           RoundedRectangleBorder())),
-                                                  icon: Icon(Icons.undo),
+                                                  icon: const Icon(Icons.undo),
                                                   onPressed: () {
                                                     switchScene(false);
                                                   },
                                                 )))
-                                        : SizedBox.shrink()
+                                        : const SizedBox.shrink()
                                   ]);
                                 })))))));
   }

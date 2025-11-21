@@ -1,5 +1,5 @@
 class Node {
-  final int id;
+  int id;
   final int constellationID;
   String text;
   int type; //0: text, 1: image, 2: article (source -> url), 3: file (pdf, txt), 4: external (links between constellations)
